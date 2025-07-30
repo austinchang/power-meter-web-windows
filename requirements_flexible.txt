@@ -1,0 +1,37 @@
+# Power Meter Web Edition - Windows 版本必要套件 (彈性版本)
+# Flask 核心框架
+Flask>=2.2.0
+Flask-SocketIO>=5.0.0
+Flask-SQLAlchemy>=3.0.0
+Flask-CORS>=4.0.0
+
+# MODBUS RTU 通訊套件
+minimalmodbus>=2.0.0
+pyserial>=3.5
+
+# Socket.IO 即時通訊
+python-socketio>=5.8.0
+python-engineio>=4.6.0
+eventlet>=0.33.0
+
+# 資料庫相關
+SQLAlchemy>=2.0.0
+
+# 工具與相依套件
+python-dotenv>=1.0.0
+psutil>=5.9.0
+click>=8.0.0
+Werkzeug>=2.2.0
+Jinja2>=3.1.0
+MarkupSafe>=2.1.0
+itsdangerous>=2.1.0
+
+# Windows 相容性套件
+pywin32>=307
+colorama>=0.4.0
+
+# 其他相依套件
+dnspython>=2.3.0
+six>=1.16.0
+python-dateutil>=2.8.0
+greenlet>=2.0.0

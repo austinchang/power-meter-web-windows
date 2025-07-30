@@ -93,13 +93,23 @@ def install_packages():
         
         print("📦 正在安裝套件，請稍候...")
         
-        # 檢查 requirements.txt 是否存在
-        if not Path("requirements.txt").exists():
+        # 選擇 requirements 檔案
+        requirements_files = ["requirements_flexible.txt", "requirements.txt"]
+        requirements_file = None
+        
+        for req_file in requirements_files:
+            if Path(req_file).exists():
+                requirements_file = req_file
+                break
+        
+        if not requirements_file:
             print("❌ 找不到 requirements.txt 檔案")
             return False
         
+        print(f"📋 使用套件清單：{requirements_file}")
+        
         # 安裝套件
-        result = subprocess.run([str(python_exe), '-m', 'pip', 'install', '-r', 'requirements.txt'], 
+        result = subprocess.run([str(python_exe), '-m', 'pip', 'install', '-r', requirements_file], 
                               capture_output=True, text=True)
         
         if result.returncode == 0:
@@ -112,7 +122,7 @@ def install_packages():
             # 嘗試使用國內映像站
             print("🔄 正在嘗試使用清華大學映像站...")
             result2 = subprocess.run([
-                str(python_exe), '-m', 'pip', 'install', '-r', 'requirements.txt',
+                str(python_exe), '-m', 'pip', 'install', '-r', requirements_file,
                 '-i', 'https://pypi.tuna.tsinghua.edu.cn/simple/'
             ], capture_output=True, text=True)
             

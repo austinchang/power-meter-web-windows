@@ -27,7 +27,7 @@ MarkupSafe==2.1.3
 itsdangerous==2.1.2
 
 # Windows 相容性套件
-pywin32==306
+pywin32>=307
 colorama==0.4.6
 
 # 其他相依套件
