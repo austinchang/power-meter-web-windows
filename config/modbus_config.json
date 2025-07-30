@@ -1,0 +1,125 @@
+{
+  "description": "Power Meter Web Edition - MODBUS RTU 配置檔案",
+  "version": "1.0.0",
+  
+  "default_settings": {
+    "baudrate": 9600,
+    "parity": "N",
+    "databits": 8,
+    "stopbits": 1,
+    "timeout": 1.0,
+    "description": "MODBUS RTU 預設通訊參數 (9600-N-8-1)"
+  },
+  
+  "com_ports": {
+    "COM1": {
+      "description": "主要 COM port",
+      "enabled": true
+    },
+    "COM2": {
+      "description": "備用 COM port",
+      "enabled": false
+    }
+  },
+  
+  "meter_mapping": {
+    "1": {
+      "modbus_address": 2,
+      "name": "電表 01",
+      "location": "主要配電盤",
+      "com_port": "COM1",
+      "enabled": true,
+      "description": "Web 介面 Meter ID 1 對應到 MODBUS Address 2"
+    }
+  },
+  
+  "modbus_registers": {
+    "voltage": {
+      "address": "0x0000",
+      "function_code": 3,
+      "data_type": "float32",
+      "unit": "V",
+      "description": "平均相電壓"
+    },
+    "current": {
+      "address": "0x0004", 
+      "function_code": 3,
+      "data_type": "float32",
+      "unit": "A",
+      "description": "平均電流"
+    },
+    "power": {
+      "address": "0x0006",
+      "function_code": 3,
+      "data_type": "float32", 
+      "unit": "W",
+      "description": "總有效功率"
+    },
+    "energy": {
+      "address": "0x000C",
+      "function_code": 3,
+      "data_type": "float32",
+      "unit": "kWh", 
+      "description": "總有效電能"
+    },
+    "relay_status": {
+      "address": "0x0000",
+      "function_code": 1,
+      "data_type": "bit",
+      "description": "繼電器狀態讀取"
+    },
+    "relay_control": {
+      "address": "0x0000", 
+      "function_code": 5,
+      "data_type": "bit",
+      "description": "繼電器控制寫入"
+    }
+  },
+  
+  "system_settings": {
+    "max_retry_count": 3,
+    "retry_delay": 0.5,
+    "connection_timeout": 5.0,
+    "read_interval": 1.0,
+    "cache_expiry": 5,
+    "debug_mode": false,
+    "log_modbus_errors": true
+  },
+  
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "problem": "無法連接到 COM port",
+        "solutions": [
+          "檢查 COM port 是否被其他程式使用",
+          "確認 USB 轉 RS485 驅動程式已安裝",
+          "檢查實體線路連接"
+        ]
+      },
+      {
+        "problem": "讀取數據錯誤",
+        "solutions": [
+          "確認 MODBUS Address 設定正確",
+          "檢查通訊參數 (9600-N-8-1)",
+          "確認電表電源正常"
+        ]
+      },
+      {
+        "problem": "繼電器控制無效",
+        "solutions": [
+          "檢查繼電器線路連接",
+          "確認電表支援繼電器控制功能",
+          "檢查控制權限設定"
+        ]
+      }
+    ]
+  },
+  
+  "notes": [
+    "此配置檔案用於 Power Meter Web Edition Windows 版本",
+    "修改設定後需要重新啟動服務",
+    "MODBUS Address 從 1 開始，但某些電表可能從 0 開始", 
+    "通訊參數必須與電表設定完全一致",
+    "建議在修改設定前先備份此檔案"
+  ]
+}

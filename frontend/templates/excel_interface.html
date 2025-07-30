@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+
+{% block title %}Excel 風格界面 - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    .excel-container {
+        background: var(--background-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .excel-toolbar {
+        background: var(--surface-color);
+        border-bottom: 1px solid var(--border-color);
+        padding: 12px 16px;
+    }
+    
+    .meter-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    
+    .meter-table th,
+    .meter-table td {
+        border: 1px solid var(--border-color);
+        padding: 8px 4px;
+        text-align: center;
+        min-width: 80px;
+        position: relative;
+    }
+    
+    .meter-table th {
+        background: var(--surface-color);
+        font-weight: bold;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .meter-table .row-header {
+        background: var(--surface-color);
+        font-weight: bold;
+        position: sticky;
+        left: 0;
+        z-index: 5;
+        min-width: 100px;
+    }
+    
+    .meter-id-cell {
+        background: var(--accent-color);
+        color: var(--text-secondary);
+        cursor: text;
+    }
+    
+    .household-cell {
+        background: var(--background-color);
+        cursor: text;
+    }
+    
+    .power-status-cell {
+        cursor: pointer;
+        transition: background-color 0.2s;
+        font-weight: bold;
+    }
+    
+    .power-status-cell:hover {
+        filter: brightness(0.9);
+    }
+    
+    .parking-cell {
+        background: var(--background-color);
+        cursor: text;
+    }
+    
+    .usage-cell,
+    .amount-cell {
+        background: var(--accent-color);
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+    }
+    
+    .power-on {
+        background-color: rgba(173, 216, 230, 0.8);
+        color: #0066cc;
+    }
+    
+    .power-off {
+        background-color: rgba(255, 182, 193, 0.8);
+        color: #cc0000;
+    }
+    
+    .meter-input {
+        border: none;
+        background: transparent;
+        width: 100%;
+        text-align: center;
+        color: inherit;
+        font-size: inherit;
+        padding: 2px;
+        min-width: 80px;
+        max-width: 200px;
+    }
+    
+    .meter-input[data-field="household"] {
+        min-width: 120px;
+        max-width: 300px;
+        text-align: left;
+        padding-left: 8px;
+    }
+    
+    .meter-input:focus {
+        outline: 2px solid var(--primary-color);
+        background: var(--background-color);
+    }
+    
+    .group-header {
+        background: var(--primary-color);
+        color: white;
+        font-weight: bold;
+        padding: 12px;
+        margin: 16px 0 8px 0;
+        border-radius: 4px;
+    }
+    
+    .control-panel {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    
+    .time-input {
+        width: 100px;
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        text-align: center;
+    }
+    
+    /* Force 24-hour format for time inputs */
+    .time-input::-webkit-datetime-edit-ampm-field {
+        display: none;
+    }
+    
+    .time-input::-webkit-datetime-edit {
+        font-size: 14px;
+    }
+    
+    .excel-scroll-container {
+        max-height: 70vh;
+        overflow: auto;
+        border: 1px solid var(--border-color);
+    }
+    
+    .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    
+    .status-online {
+        background-color: var(--success-color);
+    }
+    
+    .status-offline {
+        background-color: var(--error-color);
+    }
+    
+    .batch-controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .meter-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
+    .schedule-status-card {
+        background: linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%);
+        border-left: 4px solid #28a745;
+    }
+    
+    .schedule-status-card.power-off {
+        background: linear-gradient(135deg, #ffe6e6 0%, #fff0f0 100%);
+        border-left: 4px solid #dc3545;
+    }
+    
+    .schedule-status-card .stat-value {
+        color: #28a745;
+        font-size: 18px;
+        margin-bottom: 5px;
+    }
+    
+    .schedule-status-card.power-off .stat-value {
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Left Control Panel -->
+    <div class="col-md-3">
+        <!-- System Statistics -->
+        <div class="meter-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalMeters">48</div>
+                <div class="stat-label">總電表數</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="onlineMeters">46</div>
+                <div class="stat-label">在線/供電</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="offlineMeters">2</div>
+                <div class="stat-label">離線電表</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalPower">--</div>
+                <div class="stat-label">總功率 (kW)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalCost">--</div>
+                <div class="stat-label">今日費用 (元)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="currentUnitPrice">4.0</div>
+                <div class="stat-label">電費單價 (元/kWh)</div>
+            </div>
+            
+            <div class="stat-card schedule-status-card">
+                <div class="stat-value" id="scheduleStatus">--</div>
+                <div class="stat-label" id="scheduleTimeRange">--</div>
+            </div>
+        </div>
+
+        <!-- Power Schedule Control -->
+        <div class="control-panel">
+            <h6><i class="fas fa-clock me-2"></i>供電時段控制</h6>
+            
+            <div class="mb-3">
+                <label class="form-label small">開放供電時段 <span class="text-muted">(24小時制)</span></label>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="time" class="form-control time-input" id="openStartTime" value="" step="1800">
+                    <span>至</span>
+                    <input type="time" class="form-control time-input" id="openEndTime" value="" step="1800">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label small">關閉供電時段 <span class="text-muted">(24小時制)</span></label>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="time" class="form-control time-input" id="closeStartTime" value="" step="1800">
+                    <span>至</span>
+                    <input type="time" class="form-control time-input" id="closeEndTime" value="" step="1800">
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary btn-sm flex-grow-1" onclick="updatePowerSchedule()">
+                    <i class="fas fa-save me-1"></i>更新時段
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="reloadScheduleInputs()" title="重新載入時段設定">
+                    <i class="fas fa-redo"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Update Interval Control -->
+        <div class="control-panel">
+            <h6><i class="fas fa-sync me-2"></i>更新週期設定</h6>
+            
+            <div class="mb-3">
+                <label class="form-label small">更新間隔 (<span id="intervalValue">30</span> 秒)</label>
+                <input type="range" class="form-range" id="updateInterval" 
+                       min="5" max="180" step="5" value="30"
+                       oninput="updateIntervalDisplay()">
+                <div class="d-flex justify-content-between small text-muted">
+                    <span>5秒</span>
+                    <span>30秒 (預設)</span>
+                    <span>180秒</span>
+                </div>
+            </div>
+            
+            <div class="mb-2">
+                <div class="small text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    目前間隔: <span id="currentInterval" class="fw-bold text-primary">30秒</span>
+                </div>
+            </div>
+            
+            <button class="btn btn-success btn-sm w-100" onclick="applyUpdateInterval()">
+                <i class="fas fa-check me-1"></i>套用設定
+            </button>
+        </div>
+
+        <!-- Billing Period Control -->
+        <div class="control-panel">
+            <h6><i class="fas fa-calculator me-2"></i>計費週期設定</h6>
+            
+            <div class="mb-2">
+                <label class="form-label small">開始日期</label>
+                <input type="date" class="form-control" id="billingStartDate" value="2023-01-01">
+            </div>
+            
+            <div class="mb-2">
+                <label class="form-label small">結束日期</label>
+                <input type="date" class="form-control" id="billingEndDate" value="2023-12-31">
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label small">電費單價 (元/kWh)</label>
+                <select class="form-select" id="unitPrice">
+                    <option value="2.5">2.5 元/kWh (低峰電價)</option>
+                    <option value="3.0">3.0 元/kWh</option>
+                    <option value="3.5">3.5 元/kWh</option>
+                    <option value="4.0" selected>4.0 元/kWh (標準電價)</option>
+                    <option value="4.5">4.5 元/kWh</option>
+                    <option value="5.0">5.0 元/kWh (尖峰電價)</option>
+                    <option value="5.5">5.5 元/kWh</option>
+                    <option value="6.0">6.0 元/kWh (超高電價)</option>
+                    <option value="custom">自訂價格...</option>
+                </select>
+                <!-- 自訂價格輸入框（初始隱藏） -->
+                <div class="mt-2" id="customPriceInput" style="display: none;">
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="customUnitPrice" 
+                               placeholder="請輸入單價" min="0.1" max="50" step="0.1">
+                        <span class="input-group-text">元/kWh</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary btn-sm w-100" onclick="updateBillingPeriod()">
+                <i class="fas fa-save me-1"></i>確認設定
+            </button>
+            
+            <div class="mt-3">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    修改電費單價需要管理員密碼
+                </small>
+            </div>
+        </div>
+
+        <!-- Batch Controls -->
+        <div class="control-panel">
+            <h6><i class="fas fa-tasks me-2"></i>批量操作</h6>
+            
+            <div class="batch-controls">
+                <button class="btn btn-success btn-sm" onclick="batchPowerControl(true)">
+                    <i class="fas fa-power-off me-1"></i>全部供電
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="batchPowerControl(false)">
+                    <i class="fas fa-power-off me-1"></i>全部斷電
+                </button>
+                <button class="btn btn-info btn-sm" onclick="refreshAllData()">
+                    <i class="fas fa-sync-alt me-1"></i>刷新數據
+                </button>
+                <button class="btn btn-warning btn-sm" onclick="exportData()">
+                    <i class="fas fa-download me-1"></i>導出數據
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Excel Interface -->
+    <div class="col-md-9">
+        <div class="excel-container">
+            <!-- Toolbar -->
+            <div class="excel-toolbar">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="fas fa-table me-2"></i>
+                            Power Meter GUI Professional - Excel Edition
+                        </h5>
+                        <small class="text-muted">
+                            點擊供電狀態切換ON/OFF | 雙擊查看詳細資訊 | 戶別和車位號可直接編輯
+                        </small>
+                    </div>
+                    <div>
+                        <span class="badge bg-success me-2">
+                            <i class="fas fa-circle me-1"></i>即時更新
+                        </span>
+                        <span id="lastUpdateTime" class="text-muted small">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Excel Table Container -->
+            <div class="excel-scroll-container">
+                <!-- Meter Group 1: 1-10 -->
+                <div class="group-header">分錶群組 1-10</div>
+                <table class="meter-table" id="meterTable1">
+                    <thead>
+                        <tr>
+                            <th class="row-header">項目</th>
+                            <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+                            <th>6</th><th>7</th><th>8</th><th>9</th><th>10</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="row-header">分錶ID</td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="1" data-field="meter_id" value="1"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="2" data-field="meter_id" value="2"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="3" data-field="meter_id" value="3"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="4" data-field="meter_id" value="4"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="5" data-field="meter_id" value="5"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="6" data-field="meter_id" value="6"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="7" data-field="meter_id" value="7"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="8" data-field="meter_id" value="8"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="9" data-field="meter_id" value="9"></td>
+                            <td class="meter-id-cell"><input type="text" class="meter-input" data-meter="10" data-field="meter_id" value="10"></td>
+                        </tr>
+                        <tr>
+                            <td class="row-header">戶別</td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="1" data-field="household" value="A1"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="2" data-field="household" value="A2"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="3" data-field="household" value="A3"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="4" data-field="household" value="A4"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="5" data-field="household" value="A5"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="6" data-field="household" value="A6"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="7" data-field="household" value="A7"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="8" data-field="household" value="A8"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="9" data-field="household" value="A9"></td>
+                            <td class="household-cell"><input type="text" class="meter-input" data-meter="10" data-field="household" value="A10"></td>
+                        </tr>
+                        <tr>
+                            <td class="row-header">供電狀態</td>
+                            <td class="power-status-cell power-on" data-meter="1" onclick="togglePowerStatus(1)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="2" onclick="togglePowerStatus(2)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="3" onclick="togglePowerStatus(3)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="4" onclick="togglePowerStatus(4)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="5" onclick="togglePowerStatus(5)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="6" onclick="togglePowerStatus(6)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="7" onclick="togglePowerStatus(7)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="8" onclick="togglePowerStatus(8)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="9" onclick="togglePowerStatus(9)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                            <td class="power-status-cell power-on" data-meter="10" onclick="togglePowerStatus(10)">
+                                <i class="fas fa-power-off me-1"></i>ON
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="row-header">車位號</td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="1" data-field="parking" value="ABC-0001"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="2" data-field="parking" value="ABC-0002"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="3" data-field="parking" value="ABC-0003"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="4" data-field="parking" value="ABC-0004"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="5" data-field="parking" value="ABC-0005"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="6" data-field="parking" value="ABC-0006"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="7" data-field="parking" value="ABC-0007"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="8" data-field="parking" value="ABC-0008"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="9" data-field="parking" value="ABC-0009"></td>
+                            <td class="parking-cell"><input type="text" class="meter-input" data-meter="10" data-field="parking" value="ABC-0010"></td>
+                        </tr>
+                        <tr>
+                            <td class="row-header">用電量 (度)</td>
+                            <td class="usage-cell" data-meter="1">0.0</td>
+                            <td class="usage-cell" data-meter="2">0.0</td>
+                            <td class="usage-cell" data-meter="3">0.0</td>
+                            <td class="usage-cell" data-meter="4">0.0</td>
+                            <td class="usage-cell" data-meter="5">0.0</td>
+                            <td class="usage-cell" data-meter="6">0.0</td>
+                            <td class="usage-cell" data-meter="7">0.0</td>
+                            <td class="usage-cell" data-meter="8">0.0</td>
+                            <td class="usage-cell" data-meter="9">0.0</td>
+                            <td class="usage-cell" data-meter="10">0.0</td>
+                        </tr>
+                        <tr>
+                            <td class="row-header">金額 (元)</td>
+                            <td class="amount-cell" data-meter="1">0</td>
+                            <td class="amount-cell" data-meter="2">0</td>
+                            <td class="amount-cell" data-meter="3">0</td>
+                            <td class="amount-cell" data-meter="4">0</td>
+                            <td class="amount-cell" data-meter="5">0</td>
+                            <td class="amount-cell" data-meter="6">0</td>
+                            <td class="amount-cell" data-meter="7">0</td>
+                            <td class="amount-cell" data-meter="8">0</td>
+                            <td class="amount-cell" data-meter="9">0</td>
+                            <td class="amount-cell" data-meter="10">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Additional meter groups will be generated by JavaScript -->
+                <div id="additionalMeterGroups"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Meter Detail Modal -->
+<div class="modal fade" id="meterDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-bolt me-2"></i>
+                    電表詳細資訊 - <span id="modalMeterName">--</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>基本資訊</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td>電表 ID:</td>
+                                <td id="modalMeterId">--</td>
+                            </tr>
+                            <tr>
+                                <td>戶別名稱:</td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm" id="modalHouseholdName">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>車位號:</td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm" id="modalParkingNumber">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>供電狀態:</td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="modalPowerStatus">
+                                        <label class="form-check-label" for="modalPowerStatus">
+                                            供電中
+                                        </label>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>即時數據</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td>電壓 (V):</td>
+                                <td id="modalVoltage">--</td>
+                            </tr>
+                            <tr>
+                                <td>電流 (A):</td>
+                                <td id="modalCurrent">--</td>
+                            </tr>
+                            <tr>
+                                <td>功率 (W):</td>
+                                <td id="modalPower">--</td>
+                            </tr>
+                            <tr>
+                                <td>累積用電 (度):</td>
+                                <td id="modalEnergy">--</td>
+                            </tr>
+                            <tr>
+                                <td>今日費用 (元):</td>
+                                <td id="modalCost">--</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                <button type="button" class="btn btn-primary" onclick="saveMeterDetails()">保存變更</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/excel-interface.js') }}"></script>
+<script src="{{ url_for('static', filename='js/power-status-toggle.js') }}"></script>
+<script src="{{ url_for('static', filename='js/edge-time-fix.js') }}"></script>
+
+<script>
+// 電費單價選單處理
+document.addEventListener('DOMContentLoaded', function() {
+    const unitPriceSelect = document.getElementById('unitPrice');
+    const customPriceInput = document.getElementById('customPriceInput');
+    const customUnitPriceInput = document.getElementById('customUnitPrice');
+    
+    // 處理選單變化
+    unitPriceSelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+            customPriceInput.style.display = 'block';
+            customUnitPriceInput.focus();
+        } else {
+            customPriceInput.style.display = 'none';
+        }
+    });
+    
+    // 初始化時根據當前系統配置設定選中的選項
+    if (window.excelInterface && window.excelInterface.currentUnitPrice) {
+        const currentPrice = window.excelInterface.currentUnitPrice.toString();
+        let optionFound = false;
+        
+        // 檢查預設選項中是否有匹配的價格
+        for (let option of unitPriceSelect.options) {
+            if (option.value === currentPrice) {
+                option.selected = true;
+                optionFound = true;
+                break;
+            }
+        }
+        
+        // 如果沒有找到匹配的預設選項，設為自訂價格
+        if (!optionFound) {
+            unitPriceSelect.value = 'custom';
+            customPriceInput.style.display = 'block';
+            customUnitPriceInput.value = currentPrice;
+        }
+    }
+});
+
+// 獲取當前選中的電費單價
+function getCurrentSelectedUnitPrice() {
+    const unitPriceSelect = document.getElementById('unitPrice');
+    const customUnitPriceInput = document.getElementById('customUnitPrice');
+    
+    if (unitPriceSelect.value === 'custom') {
+        return parseFloat(customUnitPriceInput.value) || 4.0;
+    } else {
+        return parseFloat(unitPriceSelect.value) || 4.0;
+    }
+}
+
+// 重設電費單價選單到當前系統值
+function resetUnitPriceSelector() {
+    const unitPriceSelect = document.getElementById('unitPrice');
+    const customPriceInput = document.getElementById('customPriceInput');
+    const customUnitPriceInput = document.getElementById('customUnitPrice');
+    
+    if (window.excelInterface && window.excelInterface.currentUnitPrice) {
+        const currentPrice = window.excelInterface.currentUnitPrice.toString();
+        let optionFound = false;
+        
+        // 檢查預設選項中是否有匹配的價格
+        for (let option of unitPriceSelect.options) {
+            if (option.value === currentPrice) {
+                option.selected = true;
+                optionFound = true;
+                customPriceInput.style.display = 'none';
+                break;
+            }
+        }
+        
+        // 如果沒有找到匹配的預設選項，設為自訂價格
+        if (!optionFound) {
+            unitPriceSelect.value = 'custom';
+            customPriceInput.style.display = 'block';
+            customUnitPriceInput.value = currentPrice;
+        }
+    }
+}
+</script>
+{% endblock %}

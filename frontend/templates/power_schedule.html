@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>供電時段管理 - {{ app_info().name }}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    
+    <style>
+        .status-powered {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-unpowered {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .schedule-card {
+            border-left: 4px solid #007bff;
+        }
+        .schedule-active {
+            border-left-color: #28a745;
+            background-color: #f8fff9;
+        }
+        .schedule-inactive {
+            border-left-color: #dc3545;
+            background-color: #fff8f8;
+        }
+        .time-input {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- 導航欄 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-lightning-charge"></i>
+                {{ app_info().name }}
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首頁</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/excel">Excel 介面</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/monitor">監控</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/charts">圖表</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/rtu">RTU 管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/power_schedule">供電時段</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">設定</a>
+                    </li>
+                </ul>
+                
+                <span class="navbar-text">
+                    <i class="bi bi-clock"></i>
+                    <span id="currentTime">--:--:--</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 連接狀態指示器 -->
+    <div class="connection-status">
+        <div class="alert alert-info alert-dismissible d-none" id="connectionStatus">
+            <i class="bi bi-wifi"></i>
+            <span id="connectionMessage">連接中...</span>
+        </div>
+    </div>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- 左側控制面板 -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-gear"></i>
+                            供電時段控制
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- 當前狀態 -->
+                        <div class="mb-4">
+                            <h6>當前系統狀態</h6>
+                            <div class="d-flex align-items-center">
+                                <div class="status-indicator me-2">
+                                    <i class="bi bi-circle-fill" id="statusIcon"></i>
+                                </div>
+                                <span id="currentStatus" class="fw-bold">檢查中...</span>
+                            </div>
+                            <small class="text-muted" id="statusDetails">載入中...</small>
+                        </div>
+
+                        <!-- 供電時段設定 -->
+                        <form id="scheduleForm">
+                            <h6>開放供電時段</h6>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">開始時間</label>
+                                    <input type="time" class="form-control time-input" id="openStart" value="">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">結束時間</label>
+                                    <input type="time" class="form-control time-input" id="openEnd" value="">
+                                </div>
+                            </div>
+
+                            <h6>關閉供電時段</h6>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">開始時間</label>
+                                    <input type="time" class="form-control time-input" id="closeStart" value="">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">結束時間</label>
+                                    <input type="time" class="form-control time-input" id="closeEnd" value="">
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i>
+                                    更新時段設定
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="loadCurrentBtn">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                    載入當前設定
+                                </button>
+                                <button type="button" class="btn btn-outline-info" id="refreshStatusBtn">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                    刷新狀態
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 操作記錄 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-journal-text"></i>
+                            操作記錄
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="operationLog" style="max-height: 200px; overflow-y: auto;">
+                            <small class="text-muted">等待操作...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側狀態顯示 -->
+            <div class="col-md-8">
+                <!-- 時段概覽 -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card schedule-card" id="openScheduleCard">
+                            <div class="card-body">
+                                <h5 class="card-title text-success">
+                                    <i class="bi bi-power"></i>
+                                    開放供電時段
+                                </h5>
+                                <h3 id="openScheduleTime">00:05:00 - 22:05:00</h3>
+                                <p class="card-text">
+                                    <span class="badge bg-success" id="openScheduleStatus">設定中</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card schedule-card" id="closeScheduleCard">
+                            <div class="card-body">
+                                <h5 class="card-title text-danger">
+                                    <i class="bi bi-power"></i>
+                                    關閉供電時段
+                                </h5>
+                                <h3 id="closeScheduleTime">15:56:00 - 21:55:00</h3>
+                                <p class="card-text">
+                                    <span class="badge bg-danger" id="closeScheduleStatus">設定中</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 電表狀態統計 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-bar-chart"></i>
+                            電表狀態統計
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-success mb-1" id="poweredCount">-</h4>
+                                    <small class="text-muted">供電中</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-danger mb-1" id="unpoweredCount">-</h4>
+                                    <small class="text-muted">已斷電</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-primary mb-1" id="sampleSize">-</h4>
+                                    <small class="text-muted">檢測範圍</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-info mb-1" id="lastUpdate">-</h4>
+                                    <small class="text-muted">最後更新</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 時間軸顯示 -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-clock-history"></i>
+                            24小時時間軸
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="timelineContainer" style="position: relative; height: 60px; background: linear-gradient(to right, #f8f9fa, #e9ecef); border-radius: 5px;">
+                            <!-- 時間軸將由 JavaScript 動態生成 -->
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <span class="badge bg-success me-2">■</span>供電時段
+                                <span class="badge bg-danger me-2 ms-3">■</span>斷電時段
+                                <span class="badge bg-warning me-2 ms-3">▼</span>當前時間
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Socket.IO 連接
+        const socket = io();
+        
+        // 連接狀態管理
+        let isConnected = false;
+        
+        socket.on('connect', function() {
+            isConnected = true;
+            updateConnectionStatus('已連接到服務器', 'success');
+            loadCurrentSchedule();
+            refreshPowerStatus();
+        });
+        
+        socket.on('disconnect', function() {
+            isConnected = false;
+            updateConnectionStatus('與服務器斷開連接', 'danger');
+        });
+        
+        // 更新連接狀態
+        function updateConnectionStatus(message, type) {
+            const statusDiv = document.getElementById('connectionStatus');
+            const messageSpan = document.getElementById('connectionMessage');
+            
+            statusDiv.className = `alert alert-${type} alert-dismissible`;
+            messageSpan.textContent = message;
+            statusDiv.classList.remove('d-none');
+            
+            setTimeout(() => {
+                statusDiv.classList.add('d-none');
+            }, 3000);
+        }
+        
+        // 更新當前時間
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('zh-TW', { hour12: false });
+            document.getElementById('currentTime').textContent = timeString;
+            
+            // 更新時間軸上的當前時間指示器
+            updateTimelineCurrentTime(now);
+        }
+        
+        // 載入當前供電時段設定
+        async function loadCurrentSchedule() {
+            try {
+                addLog('正在載入當前供電時段設定...', 'info');
+                
+                const response = await fetch('/api/system/config');
+                const data = await response.json();
+                
+                if (data.success && data.data.power_schedule) {
+                    const schedule = data.data.power_schedule;
+                    console.log('Loaded schedule from API:', schedule);
+                    
+                    // 更新表單（移除時間格式的 :00）
+                    document.getElementById('openStart').value = schedule.open_power.start.substring(0, 5);
+                    document.getElementById('openEnd').value = schedule.open_power.end.substring(0, 5);
+                    document.getElementById('closeStart').value = schedule.close_power.start.substring(0, 5);
+                    document.getElementById('closeEnd').value = schedule.close_power.end.substring(0, 5);
+                    
+                    // 更新顯示卡
+                    updateScheduleCards(schedule);
+                    
+                    // 更新時間軸
+                    updateTimeline(schedule);
+                    
+                    addLog('供電時段設定載入成功', 'success');
+                } else {
+                    addLog('載入供電時段設定失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load schedule:', error);
+                addLog('載入供電時段設定時發生錯誤', 'error');
+            }
+        }
+        
+        // 刷新供電狀態
+        function refreshPowerStatus() {
+            socket.emit('get_power_status', {});
+            addLog('正在刷新供電狀態...', 'info');
+        }
+        
+        // 供電時段響應處理
+        socket.on('power_schedule_response', function(data) {
+            if (data.success) {
+                if (data.schedule) {
+                    // 更新表單
+                    document.getElementById('openStart').value = data.schedule.open_power.start;
+                    document.getElementById('openEnd').value = data.schedule.open_power.end;
+                    document.getElementById('closeStart').value = data.schedule.close_power.start;
+                    document.getElementById('closeEnd').value = data.schedule.close_power.end;
+                    
+                    // 更新顯示卡
+                    updateScheduleCards(data.schedule);
+                    
+                    // 更新時間軸
+                    updateTimeline(data.schedule);
+                    
+                    // 立即刷新供電狀態（因為時段變更可能影響當前狀態）
+                    addLog('時段更新成功，正在同步電表狀態...', 'info');
+                    refreshPowerStatus();
+                    
+                    addLog(data.message, 'success');
+                } else {
+                    addLog(data.message, 'success');
+                }
+            } else {
+                addLog(data.message || data.error, 'error');
+            }
+        });
+        
+        // 供電狀態響應處理
+        socket.on('power_status_response', function(data) {
+            if (data.success) {
+                updatePowerStatus(data);
+                addLog(data.message, 'success');
+            } else {
+                addLog(data.message || data.error, 'error');
+            }
+        });
+        
+        // 監聽供電時段變更廣播（來自其他頁面的更新）
+        socket.on('power_schedule_changed', function(data) {
+            console.log('Received power schedule change broadcast:', data);
+            addLog(data.message, 'info');
+            
+            // 更新本頁面的顯示
+            if (data.schedule) {
+                // 更新表單
+                document.getElementById('openStart').value = data.schedule.open_power.start;
+                document.getElementById('openEnd').value = data.schedule.open_power.end;
+                document.getElementById('closeStart').value = data.schedule.close_power.start;
+                document.getElementById('closeEnd').value = data.schedule.close_power.end;
+                
+                // 更新顯示卡
+                updateScheduleCards(data.schedule);
+                
+                // 更新時間軸
+                updateTimeline(data.schedule);
+                
+                // 刷新供電狀態
+                setTimeout(() => {
+                    refreshPowerStatus();
+                }, 500);
+            }
+        });
+        
+        // 更新供電狀態顯示
+        function updatePowerStatus(data) {
+            const statusIcon = document.getElementById('statusIcon');
+            const statusText = document.getElementById('currentStatus');
+            const statusDetails = document.getElementById('statusDetails');
+            
+            if (data.overall_status === 'powered') {
+                statusIcon.className = 'bi bi-circle-fill status-powered';
+                statusText.textContent = '系統供電中';
+                statusText.className = 'fw-bold status-powered';
+            } else {
+                statusIcon.className = 'bi bi-circle-fill status-unpowered';
+                statusText.textContent = '系統已斷電';
+                statusText.className = 'fw-bold status-unpowered';
+            }
+            
+            statusDetails.textContent = `檢測 ${data.sample_size} 個電表：${data.powered_meters} 供電，${data.unpowered_meters} 斷電`;
+            
+            // 更新統計
+            document.getElementById('poweredCount').textContent = data.powered_meters;
+            document.getElementById('unpoweredCount').textContent = data.unpowered_meters;
+            document.getElementById('sampleSize').textContent = data.sample_size;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        }
+        
+        // 更新時段顯示卡
+        function updateScheduleCards(schedule) {
+            document.getElementById('openScheduleTime').textContent = 
+                `${schedule.open_power.start} - ${schedule.open_power.end}`;
+            document.getElementById('closeScheduleTime').textContent = 
+                `${schedule.close_power.start} - ${schedule.close_power.end}`;
+            
+            // 判斷當前時間是否在各時段內
+            const now = new Date();
+            const currentTime = now.toTimeString().substr(0, 8);
+            
+            const openCard = document.getElementById('openScheduleCard');
+            const closeCard = document.getElementById('closeScheduleCard');
+            
+            if (isTimeInRange(currentTime, schedule.open_power.start, schedule.open_power.end) &&
+                !isTimeInRange(currentTime, schedule.close_power.start, schedule.close_power.end)) {
+                openCard.classList.add('schedule-active');
+                openCard.classList.remove('schedule-inactive');
+                closeCard.classList.add('schedule-inactive');
+                closeCard.classList.remove('schedule-active');
+                document.getElementById('openScheduleStatus').textContent = '目前生效';
+                document.getElementById('closeScheduleStatus').textContent = '未生效';
+            } else if (isTimeInRange(currentTime, schedule.close_power.start, schedule.close_power.end)) {
+                openCard.classList.add('schedule-inactive');
+                openCard.classList.remove('schedule-active');
+                closeCard.classList.add('schedule-active');
+                closeCard.classList.remove('schedule-inactive');
+                document.getElementById('openScheduleStatus').textContent = '未生效';
+                document.getElementById('closeScheduleStatus').textContent = '目前生效';
+            } else {
+                openCard.classList.remove('schedule-active', 'schedule-inactive');
+                closeCard.classList.remove('schedule-active', 'schedule-inactive');
+                document.getElementById('openScheduleStatus').textContent = '待定';
+                document.getElementById('closeScheduleStatus').textContent = '待定';
+            }
+        }
+        
+        // 更新時間軸
+        function updateTimeline(schedule) {
+            const container = document.getElementById('timelineContainer');
+            container.innerHTML = '';
+            
+            // 創建24小時時間軸背景
+            for (let hour = 0; hour < 24; hour++) {
+                const hourDiv = document.createElement('div');
+                hourDiv.style.position = 'absolute';
+                hourDiv.style.left = `${(hour / 24) * 100}%`;
+                hourDiv.style.width = `${(1 / 24) * 100}%`;
+                hourDiv.style.height = '100%';
+                hourDiv.style.border = '1px solid #dee2e6';
+                hourDiv.style.display = 'flex';
+                hourDiv.style.alignItems = 'center';
+                hourDiv.style.justifyContent = 'center';
+                hourDiv.style.fontSize = '10px';
+                hourDiv.style.color = '#6c757d';
+                hourDiv.textContent = hour.toString().padStart(2, '0');
+                
+                // 根據時段設置背景色
+                const timeStr = `${hour.toString().padStart(2, '0')}:00:00`;
+                if (isTimeInRange(timeStr, schedule.open_power.start, schedule.open_power.end) &&
+                    !isTimeInRange(timeStr, schedule.close_power.start, schedule.close_power.end)) {
+                    hourDiv.style.backgroundColor = '#d4edda';
+                } else if (isTimeInRange(timeStr, schedule.close_power.start, schedule.close_power.end)) {
+                    hourDiv.style.backgroundColor = '#f8d7da';
+                }
+                
+                container.appendChild(hourDiv);
+            }
+        }
+        
+        // 更新時間軸當前時間指示器
+        function updateTimelineCurrentTime(now) {
+            const container = document.getElementById('timelineContainer');
+            
+            // 移除舊的當前時間指示器
+            const oldIndicator = container.querySelector('.current-time-indicator');
+            if (oldIndicator) {
+                oldIndicator.remove();
+            }
+            
+            // 創建新的當前時間指示器
+            const indicator = document.createElement('div');
+            indicator.className = 'current-time-indicator';
+            indicator.style.position = 'absolute';
+            indicator.style.top = '0';
+            indicator.style.width = '2px';
+            indicator.style.height = '100%';
+            indicator.style.backgroundColor = '#ffc107';
+            indicator.style.zIndex = '10';
+            
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            const totalMinutes = 24 * 60;
+            indicator.style.left = `${(currentMinutes / totalMinutes) * 100}%`;
+            
+            container.appendChild(indicator);
+        }
+        
+        // 判斷時間是否在範圍內
+        function isTimeInRange(time, start, end) {
+            if (start <= end) {
+                return time >= start && time <= end;
+            } else {
+                // 跨越午夜的情況
+                return time >= start || time <= end;
+            }
+        }
+        
+        // 添加操作記錄
+        function addLog(message, type) {
+            const logContainer = document.getElementById('operationLog');
+            const timestamp = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `small mb-1 text-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'muted'}`;
+            logEntry.innerHTML = `<strong>${timestamp}</strong> ${message}`;
+            
+            // 插入到頂部
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
+            
+            // 限制記錄數量
+            while (logContainer.children.length > 10) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+        }
+        
+        // 表單提交處理
+        document.getElementById('scheduleForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const schedule = {
+                open_power: {
+                    start: document.getElementById('openStart').value,
+                    end: document.getElementById('openEnd').value
+                },
+                close_power: {
+                    start: document.getElementById('closeStart').value,
+                    end: document.getElementById('closeEnd').value
+                }
+            };
+            
+            socket.emit('update_power_schedule', { schedule: schedule });
+            addLog('正在更新供電時段設定...', 'info');
+        });
+        
+        // 按鈕事件處理
+        document.getElementById('loadCurrentBtn').addEventListener('click', loadCurrentSchedule);
+        document.getElementById('refreshStatusBtn').addEventListener('click', refreshPowerStatus);
+        
+        // 初始化
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        
+        // 頁面載入時自動讀取已保存的供電時段設定
+        loadCurrentSchedule();
+        
+        // 定期刷新狀態（每30秒）
+        setInterval(refreshPowerStatus, 30000);
+    </script>
+</body>
+</html>

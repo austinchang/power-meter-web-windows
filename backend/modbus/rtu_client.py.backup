@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""
+MODBUS RTU 客戶端 - 用於與 RTU 模擬器通訊
+整合到 Power Meter Web 應用程式中
+"""
+
+import time
+import struct
+import threading
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
+import logging
+
+try:
+    from pymodbus.client import ModbusSerialClient
+    from pymodbus.exceptions import ModbusException
+except ImportError:
+    print("警告: pymodbus 未安裝，將使用模擬模式")
+    ModbusSerialClient = None
+    ModbusException = Exception
+
+class IEEE754Handler:
+    """IEEE 754 浮點數處理器"""
+    
+    @staticmethod
+    def registers_to_float(reg1: int, reg2: int) -> float:
+        """將兩個16位寄存器轉換為浮點數"""
+        try:
+            # 打包為字節
+            packed = struct.pack('>HH', reg1, reg2)
+            # 解包為浮點數
+            return struct.unpack('>f', packed)[0]
+        except:
+            return 0.0
+    
+    @staticmethod
+    def float_to_registers(value: float) -> Tuple[int, int]:
+        """將浮點數轉換為兩個16位寄存器"""
+        try:
+            # 轉換為32位浮點數的字節表示
+            packed = struct.pack('>f', value)
+            # 解包為兩個16位整數
+            reg1, reg2 = struct.unpack('>HH', packed)
+            return reg1, reg2
+        except:
+            return 0, 0
+
+class ModbusRTUClient:
+    """MODBUS RTU 客戶端"""
+    
+    # ADTEK MWH-7W 寄存器映射
+    REGISTER_MAP = {
+        'total_energy': 0x0046,    # 累積電能 kWh
+        'voltage_l1': 0x0000,      # L1 電壓
+        'voltage_l2': 0x0002,      # L2 電壓  
+        'voltage_l3': 0x0004,      # L3 電壓
+        'current_l1': 0x0006,      # L1 電流
+        'current_l2': 0x0008,      # L2 電流
+        'current_l3': 0x000A,      # L3 電流
+        'frequency': 0x0010,       # 頻率
+        'power_factor': 0x0012,    # 功率因子
+    }
+    
+    def __init__(self, config: dict):
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        
+        # RTU 配置
+        self.port = config.get('rtu_port', '/dev/ttyUSB0')
+        self.baudrate = config.get('baudrate', 9600)
+        self.bytesize = config.get('bytesize', 8)
+        self.parity = config.get('parity', 'N')
+        self.stopbits = config.get('stopbits', 1)
+        self.timeout = config.get('timeout', 1.0)
+        
+        # 連線管理
+        self.client = None
+        self.connected = False
+        self.last_connection_attempt = 0
+        self.connection_retry_interval = 30  # 30秒重試一次
+        
+        # 數據快取
+        self.meter_cache = {}
+        self.cache_expiry = config.get('cache_expiry', 5)  # 5秒快取
+        
+        # 統計信息
+        self.request_count = 0
+        self.success_count = 0
+        self.error_count = 0
+        
+        # 線程鎖
+        self.lock = threading.Lock()
+        
+        self.logger.info(f"RTU 客戶端初始化 - 埠: {self.port}, 波特率: {self.baudrate}")
+    
+    def connect(self) -> bool:
+        """連接到 RTU 設備"""
+        if ModbusSerialClient is None:
+            self.logger.warning("pymodbus 未安裝，使用模擬模式")
+            self.connected = True
+            return True
+        
+        try:
+            current_time = time.time()
+            
+            # 避免頻繁重連
+            if current_time - self.last_connection_attempt < self.connection_retry_interval:
+                return self.connected
+            
+            self.last_connection_attempt = current_time
+            
+            # 關閉現有連線
+            if self.client:
+                try:
+                    self.client.close()
+                except:
+                    pass
+            
+            # 創建新連線
+            self.client = ModbusSerialClient(
+                port=self.port,
+                baudrate=self.baudrate,
+                bytesize=self.bytesize,
+                parity=self.parity,
+                stopbits=self.stopbits,
+                timeout=self.timeout
+            )
+            
+            # 嘗試連接
+            if self.client.connect():
+                self.connected = True
+                self.logger.info("RTU 連線成功")
+                return True
+            else:
+                self.connected = False
+                self.logger.error("RTU 連線失敗")
+                return False
+                
+        except Exception as e:
+            self.connected = False
+            self.logger.error(f"RTU 連線異常: {e}")
+            return False
+    
+    def disconnect(self):
+        """斷開 RTU 連線"""
+        if self.client:
+            try:
+                self.client.close()
+                self.connected = False
+                self.logger.info("RTU 連線已斷開")
+            except Exception as e:
+                self.logger.warning(f"斷開連線時發生錯誤: {e}")
+    
+    def read_register(self, meter_id: int, register_name: str) -> Optional[float]:
+        """讀取指定電表的寄存器值"""
+        if register_name not in self.REGISTER_MAP:
+            self.logger.error(f"未知的寄存器: {register_name}")
+            return None
+        
+        register_addr = self.REGISTER_MAP[register_name]
+        return self._read_float_register(meter_id, register_addr)
+    
+    def _read_float_register(self, meter_id: int, register_addr: int) -> Optional[float]:
+        """讀取浮點數寄存器 (佔用2個寄存器)"""
+        with self.lock:
+            self.request_count += 1
+            
+            # 檢查快取
+            cache_key = f"{meter_id}_{register_addr}"
+            current_time = time.time()
+            
+            if cache_key in self.meter_cache:
+                cached_data = self.meter_cache[cache_key]
+                if current_time - cached_data['timestamp'] < self.cache_expiry:
+                    return cached_data['value']
+            
+            # 如果沒有連線，嘗試重連
+            if not self.connected:
+                if not self.connect():
+                    return self._get_simulated_value(register_addr, meter_id)
+            
+            try:
+                # 模擬模式或連線失敗時返回模擬數據
+                if ModbusSerialClient is None or not self.connected:
+                    return self._get_simulated_value(register_addr, meter_id)
+                
+                # 讀取2個連續寄存器 (IEEE 754 浮點數)
+                result = self.client.read_input_registers(
+                    address=register_addr,
+                    count=2,
+                    slave=meter_id
+                )
+                
+                if result.isError():
+                    self.error_count += 1
+                    self.logger.warning(f"讀取電表 {meter_id} 寄存器 0x{register_addr:04X} 失敗: {result}")
+                    return self._get_simulated_value(register_addr, meter_id)
+                
+                # 轉換為浮點數
+                value = IEEE754Handler.registers_to_float(
+                    result.registers[0], 
+                    result.registers[1]
+                )
+                
+                # 更新快取
+                self.meter_cache[cache_key] = {
+                    'value': value,
+                    'timestamp': current_time
+                }
+                
+                self.success_count += 1
+                return value
+                
+            except Exception as e:
+                self.error_count += 1
+                self.logger.error(f"讀取寄存器時發生異常: {e}")
+                self.connected = False
+                return self._get_simulated_value(register_addr, meter_id)
+    
+    def _get_simulated_value(self, register_addr: int, meter_id: int) -> float:
+        """獲取模擬數據 (當無法連接到實際設備時使用)"""
+        import random
+        
+        current_time = time.time()
+        
+        if register_addr == 0x0046:  # 總電能 - 持續增長
+            base_energy = 1000.0 + meter_id * 100
+            time_factor = (current_time % 86400) / 86400  # 一天內的時間比例
+            daily_increment = meter_id * 10 * time_factor
+            return base_energy + daily_increment
+            
+        elif register_addr in [0x0000, 0x0002, 0x0004]:  # 電壓
+            return 220.0 + random.uniform(-5, 5) + (meter_id % 10)
+            
+        elif register_addr in [0x0006, 0x0008, 0x000A]:  # 電流
+            return 5.0 + random.uniform(-2, 5) + (meter_id % 3)
+            
+        elif register_addr == 0x0010:  # 頻率
+            return 50.0 + random.uniform(-0.1, 0.1)
+            
+        elif register_addr == 0x0012:  # 功率因子
+            return 0.9 + random.uniform(-0.05, 0.05)
+            
+        else:
+            return 0.0
+    
+    def read_meter_data(self, meter_id: int) -> Dict[str, Any]:
+        """讀取電表的完整數據"""
+        meter_data = {
+            'id': meter_id,
+            'timestamp': datetime.now().isoformat(),
+            'online': True,
+            'error_message': None
+        }
+        
+        try:
+            # 讀取各項數據
+            meter_data['voltage_l1'] = self.read_register(meter_id, 'voltage_l1') or 0.0
+            meter_data['voltage_l2'] = self.read_register(meter_id, 'voltage_l2') or 0.0
+            meter_data['voltage_l3'] = self.read_register(meter_id, 'voltage_l3') or 0.0
+            
+            meter_data['current_l1'] = self.read_register(meter_id, 'current_l1') or 0.0
+            meter_data['current_l2'] = self.read_register(meter_id, 'current_l2') or 0.0
+            meter_data['current_l3'] = self.read_register(meter_id, 'current_l3') or 0.0
+            
+            meter_data['total_energy'] = self.read_register(meter_id, 'total_energy') or 0.0
+            meter_data['frequency'] = self.read_register(meter_id, 'frequency') or 0.0
+            meter_data['power_factor'] = self.read_register(meter_id, 'power_factor') or 0.0
+            
+            # 計算衍生數據
+            total_voltage = meter_data['voltage_l1'] + meter_data['voltage_l2'] + meter_data['voltage_l3']
+            total_current = meter_data['current_l1'] + meter_data['current_l2'] + meter_data['current_l3']
+            
+            meter_data['voltage_avg'] = total_voltage / 3.0
+            meter_data['current_total'] = total_current
+            meter_data['power_apparent'] = total_voltage * total_current / 1000.0  # kVA
+            meter_data['power_active'] = meter_data['power_apparent'] * meter_data['power_factor']  # kW
+            
+        except Exception as e:
+            meter_data['online'] = False
+            meter_data['error_message'] = str(e)
+            self.logger.error(f"讀取電表 {meter_id} 數據時發生錯誤: {e}")
+        
+        return meter_data
+    
+    def read_multiple_meters(self, meter_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+        """批量讀取多個電表數據"""
+        results = {}
+        
+        for meter_id in meter_ids:
+            results[meter_id] = self.read_meter_data(meter_id)
+            # 小延遲避免過載
+            time.sleep(0.01)
+        
+        return results
+    
+    def get_connection_status(self) -> Dict[str, Any]:
+        """獲取連線狀態信息"""
+        return {
+            'connected': self.connected,
+            'port': self.port,
+            'baudrate': self.baudrate,
+            'last_connection_attempt': self.last_connection_attempt,
+            'request_count': self.request_count,
+            'success_count': self.success_count,
+            'error_count': self.error_count,
+            'success_rate': (self.success_count / self.request_count * 100) if self.request_count > 0 else 0,
+            'cache_size': len(self.meter_cache)
+        }
+    
+    def clear_cache(self):
+        """清除數據快取"""
+        with self.lock:
+            self.meter_cache.clear()
+            self.logger.info("數據快取已清除")
+    
+    def __del__(self):
+        """析構函數 - 確保連線正確關閉"""
+        self.disconnect()

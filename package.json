@@ -1,0 +1,53 @@
+{
+  "name": "power-meter-web-windows",
+  "version": "1.0.0",
+  "description": "專業電表監控系統 Windows 版 - 支援 MODBUS RTU 通訊",
+  "main": "run_windows.py",
+  "scripts": {
+    "start": "python run_windows.py",
+    "install": "install.bat",
+    "test": "python scripts/test_modbus.py",
+    "setup": "python scripts/setup_database.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/[your-username]/power-meter-web-windows.git"
+  },
+  "keywords": [
+    "power-meter",
+    "modbus-rtu",
+    "energy-monitoring",
+    "windows",
+    "flask",
+    "socketio",
+    "industrial-automation",
+    "electrical-monitoring",
+    "com-port",
+    "serial-communication"
+  ],
+  "author": "Claude Code Assistant",
+  "license": "MIT",
+  "python_requires": ">=3.8",
+  "os": "Windows 10/11",
+  "homepage": "https://github.com/[your-username]/power-meter-web-windows",
+  "bugs": {
+    "url": "https://github.com/[your-username]/power-meter-web-windows/issues"
+  },
+  "engines": {
+    "python": ">=3.8"
+  },
+  "system_requirements": {
+    "os": "Windows 10/11 (64-bit)",
+    "memory": "2GB RAM minimum",
+    "storage": "500MB available space",
+    "hardware": "Available COM port for MODBUS RTU communication"
+  },
+  "features": {
+    "modbus_support": "MODBUS RTU over COM port (9600-N-8-1)",
+    "meters_supported": "Up to 50 meters simultaneously",
+    "real_time_monitoring": "Socket.IO based real-time updates",
+    "data_persistence": "SQLite database for historical data",
+    "web_interface": "Excel-style responsive web interface",
+    "power_scheduling": "Intelligent power schedule management"
+  }
+}

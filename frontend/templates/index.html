@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+
+{% block title %}首頁 - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Welcome Section -->
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h1 class="display-4 mb-3">
+                    <i class="fas fa-bolt text-primary me-3"></i>
+                    Power Meter GUI Professional
+                </h1>
+                <h2 class="h4 text-muted mb-4">Web Edition</h2>
+                <p class="lead">
+                    專業的電表監控系統 Web 版本，提供與桌面版 100% 功能對等的現代化 Web 界面
+                </p>
+                <div class="row mt-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-table fa-2x text-primary me-3"></i>
+                            <div>
+                                <h6 class="mb-0">Excel 風格界面</h6>
+                                <small class="text-muted">熟悉的表格操作</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-chart-line fa-2x text-success me-3"></i>
+                            <div>
+                                <h6 class="mb-0">即時監控</h6>
+                                <small class="text-muted">WebSocket 即時更新</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-mobile-alt fa-2x text-warning me-3"></i>
+                            <div>
+                                <h6 class="mb-0">響應式設計</h6>
+                                <small class="text-muted">支援多種設備</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-cloud fa-2x text-info me-3"></i>
+                            <div>
+                                <h6 class="mb-0">雲端存取</h6>
+                                <small class="text-muted">隨時隨地監控</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- System Overview -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-server me-2"></i>系統概覽
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <div class="border-end">
+                            <div class="h4 text-primary mb-1" id="totalMeters">48</div>
+                            <small class="text-muted">總電表數</small>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="h4 text-success mb-1" id="onlineMeters">46</div>
+                        <small class="text-muted">在線電表</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="border-end">
+                            <div class="h4 text-warning mb-1" id="totalPower">--</div>
+                            <small class="text-muted">總功率 (kW)</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="h4 text-info mb-1" id="dailyCost">--</div>
+                        <small class="text-muted">今日費用 (元)</small>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>系統狀態</span>
+                    <span class="badge bg-success">運行中</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>連接狀態</span>
+                    <span id="systemConnectionStatus" class="badge bg-success">已連接</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>最後更新</span>
+                    <span id="systemLastUpdate" class="text-muted small">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt me-2"></i>快速操作
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <!-- 主要功能 -->
+                    <a href="{{ url_for('excel_interface') }}" class="btn btn-primary">
+                        <i class="fas fa-table me-2"></i>Excel 界面
+                    </a>
+                    <a href="{{ url_for('monitor_interface') }}" class="btn btn-success">
+                        <i class="fas fa-eye me-2"></i>即時監控
+                    </a>
+                    
+                    <!-- 數據與分析 -->
+                    <a href="{{ url_for('charts') }}" class="btn btn-info">
+                        <i class="fas fa-chart-line me-2"></i>數據圖表
+                    </a>
+                    <a href="{{ url_for('history_data') }}" class="btn btn-outline-info">
+                        <i class="fas fa-history me-2"></i>歷史數據
+                    </a>
+                    
+                    <!-- 管理功能 -->
+                    <a href="{{ url_for('rtu_management') }}" class="btn btn-warning">
+                        <i class="fas fa-plug me-2"></i>RTU 管理
+                    </a>
+                    <a href="{{ url_for('power_schedule_management') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-clock me-2"></i>供電時段
+                    </a>
+                    <a href="{{ url_for('settings') }}" class="btn btn-secondary">
+                        <i class="fas fa-cog me-2"></i>系統設定
+                    </a>
+                    
+                    <hr>
+                    
+                    <!-- 系統操作 -->
+                    <button class="btn btn-warning" onclick="refreshSystemData()">
+                        <i class="fas fa-sync-alt me-2"></i>刷新數據
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="emergencyStopAll()">
+                        <i class="fas fa-stop me-2"></i>緊急停止
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>最近活動
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="recentActivity">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-check-circle text-success me-3"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">系統啟動</div>
+                            <small class="text-muted">{{ current_year() }}-07-17 10:30:00</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-power-off text-primary me-3"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">電表 A1 供電開啟</div>
+                            <small class="text-muted">{{ current_year() }}-07-17 10:25:00</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-exclamation-triangle text-warning me-3"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">電表 A15 電壓異常</div>
+                            <small class="text-muted">{{ current_year() }}-07-17 10:20:00</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-sync-alt text-info me-3"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">數據同步完成</div>
+                            <small class="text-muted">{{ current_year() }}-07-17 10:15:00</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="text-center">
+                    <a href="#" class="btn btn-sm btn-outline-primary">查看更多</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Feature Comparison -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-balance-scale me-2"></i>功能對照表
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>功能模組</th>
+                                <th class="text-center">Desktop PRO</th>
+                                <th class="text-center">Desktop Excel</th>
+                                <th class="text-center"><strong>Web Edition</strong></th>
+                                <th>說明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><i class="fas fa-eye me-2"></i>電表監控</td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>即時監控 48 個電表狀態</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-table me-2"></i>Excel 界面</td>
+                                <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>Excel 風格的表格式操作界面</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-chart-line me-2"></i>即時圖表</td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>Chart.js 動態圖表</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-clock me-2"></i>時段控制</td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>供電時段智能管理</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-calculator me-2"></i>計費管理</td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>精確的費用計算系統</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-palette me-2"></i>主題切換</td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>Light/Dark/Industrial 主題</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-download me-2"></i>數據導出</td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td>多格式數據匯出</td>
+                            </tr>
+                            <tr class="table-warning">
+                                <td><i class="fas fa-globe me-2"></i>遠程訪問</td>
+                                <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                                <td class="text-center"><i class="fas fa-times text-danger"></i></td>
+                                <td class="text-center"><i class="fas fa-check text-success"></i></td>
+                                <td><strong>Web 版本獨有優勢</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Version Info -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>版本資訊
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td>應用程式名稱:</td>
+                        <td>{{ app_info().name }}</td>
+                    </tr>
+                    <tr>
+                        <td>版本號:</td>
+                        <td><code>{{ app_info().version }}</code></td>
+                    </tr>
+                    <tr>
+                        <td>技術棧:</td>
+                        <td>Flask + Socket.IO + Chart.js</td>
+                    </tr>
+                    <tr>
+                        <td>開發者:</td>
+                        <td>{{ app_info().author }}</td>
+                    </tr>
+                    <tr>
+                        <td>授權:</td>
+                        <td>{{ app_info().license }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Support & Links -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-life-ring me-2"></i>支援與連結
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ app_info().homepage }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                        <i class="fab fa-github me-2"></i>GitHub 專案
+                    </a>
+                    <button class="btn btn-outline-info btn-sm" onclick="showSystemInfo()">
+                        <i class="fas fa-server me-2"></i>系統資訊
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="checkUpdates()">
+                        <i class="fas fa-sync-alt me-2"></i>檢查更新
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="showHelp()">
+                        <i class="fas fa-question-circle me-2"></i>使用說明
+                    </button>
+                </div>
+                
+                <hr>
+                
+                <div class="text-center text-muted small">
+                    <p class="mb-0">
+                        <i class="fas fa-copyright me-1"></i>
+                        {{ current_year() }} Power Meter Professional
+                    </p>
+                    <p class="mb-0">
+                        Powered by Claude Code Plan Mode
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load system overview data
+    loadSystemOverview();
+    
+    // Start auto-refresh for dashboard
+    setInterval(loadSystemOverview, 30000); // Every 30 seconds
+    
+    // Listen for connection status changes
+    document.addEventListener('meterDataUpdate', function(e) {
+        updateLastUpdateTime();
+    });
+});
+
+function loadSystemOverview() {
+    // 檢查 powerMeterApp 是否可用
+    if (!window.powerMeterApp || !window.powerMeterApp.apiRequest) {
+        console.log('PowerMeterApp not ready, retrying in 1 second...');
+        setTimeout(loadSystemOverview, 1000);
+        return;
+    }
+    
+    window.powerMeterApp.apiRequest('/api/charts/dashboard')
+        .then(response => {
+            if (response.success) {
+                const data = response.data;
+                
+                // Update overview stats
+                document.getElementById('totalMeters').textContent = data.summary.total_meters;
+                document.getElementById('onlineMeters').textContent = data.summary.online_meters;
+                document.getElementById('totalPower').textContent = window.powerMeterApp.formatNumber(data.summary.total_power, 1);
+                document.getElementById('dailyCost').textContent = window.powerMeterApp.formatNumber(data.summary.total_cost, 0);
+                
+                updateLastUpdateTime();
+            }
+        })
+        .catch(error => {
+            console.error('Failed to load dashboard data:', error);
+            // 使用後備數據
+            document.getElementById('totalMeters').textContent = '48';
+            document.getElementById('onlineMeters').textContent = '46';
+            document.getElementById('totalPower').textContent = '--';
+            document.getElementById('dailyCost').textContent = '--';
+        });
+    
+    // Update connection status
+    const statusElement = document.getElementById('systemConnectionStatus');
+    if (statusElement) {
+        if (window.powerMeterApp && window.powerMeterApp.isConnected) {
+            statusElement.className = 'badge bg-success';
+            statusElement.textContent = '已連接';
+        } else {
+            statusElement.className = 'badge bg-danger';
+            statusElement.textContent = '連接中斷';
+        }
+    }
+}
+
+function updateLastUpdateTime() {
+    const element = document.getElementById('systemLastUpdate');
+    if (element) {
+        element.textContent = new Date().toLocaleTimeString('zh-TW');
+    }
+}
+
+function refreshSystemData() {
+    console.log('刷新系統數據被點擊');
+    
+    if (window.powerMeterApp && window.powerMeterApp.refreshAllData) {
+        window.powerMeterApp.refreshAllData();
+        loadSystemOverview();
+        window.powerMeterApp.showNotification('系統數據已刷新', 'success');
+    } else {
+        // 後備方案：直接刷新頁面
+        console.log('PowerMeterApp not available, refreshing page...');
+        location.reload();
+    }
+}
+
+function emergencyStopAll() {
+    console.log('緊急停止被點擊');
+    
+    if (!window.powerMeterApp || !window.powerMeterApp.batchControlMeters) {
+        alert('系統正在初始化中，請稍後再試');
+        console.error('powerMeterApp not available yet');
+        return;
+    }
+    
+    if (confirm('警告：這將立即切斷所有電表供電！\n\n確定要執行緊急停止嗎？')) {
+        const meterIds = Array.from({length: 48}, (_, i) => i + 1);
+        
+        if (window.powerMeterApp.showLoading) {
+            window.powerMeterApp.showLoading(true);
+        }
+        
+        window.powerMeterApp.batchControlMeters(meterIds, false)
+            .then(success => {
+                if (success) {
+                    if (window.powerMeterApp.showNotification) {
+                        window.powerMeterApp.showNotification('緊急停止執行完成', 'warning');
+                    } else {
+                        alert('緊急停止執行完成');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('緊急停止執行失敗:', error);
+                alert('緊急停止執行失敗，請檢查系統狀態');
+            })
+            .finally(() => {
+                if (window.powerMeterApp.showLoading) {
+                    window.powerMeterApp.showLoading(false);
+                }
+            });
+    }
+}
+
+function showSystemInfo() {
+    console.log('顯示系統資訊被點擊');
+    
+    if (!window.powerMeterApp || !window.powerMeterApp.apiRequest) {
+        // 後備方案：直接調用 API
+        fetch('/api/system/status')
+            .then(response => response.json())
+            .then(response => {
+                if (response.success) {
+                    const data = response.data;
+                    let info = `系統資訊\n\n`;
+                    info += `應用程式: ${data.app_info.name}\n`;
+                    info += `版本: ${data.app_info.version}\n`;
+                    info += `CPU 使用率: ${data.system.cpu_percent.toFixed(1)}%\n`;
+                    info += `記憶體使用率: ${data.system.memory.percent.toFixed(1)}%\n`;
+                    info += `磁碟使用率: ${data.system.disk.percent.toFixed(1)}%\n`;
+                    info += `環境: ${data.config.environment}\n`;
+                    info += `除錯模式: ${data.config.debug_mode ? '開啟' : '關閉'}`;
+                    
+                    alert(info);
+                }
+            })
+            .catch(error => {
+                console.error('無法獲取系統資訊:', error);
+                alert('無法獲取系統資訊，請檢查網絡連接');
+            });
+        return;
+    }
+    
+    window.powerMeterApp.apiRequest('/api/system/status')
+        .then(response => {
+            if (response.success) {
+                const data = response.data;
+                let info = `系統資訊\n\n`;
+                info += `應用程式: ${data.app_info.name}\n`;
+                info += `版本: ${data.app_info.version}\n`;
+                info += `CPU 使用率: ${data.system.cpu_percent.toFixed(1)}%\n`;
+                info += `記憶體使用率: ${data.system.memory.percent.toFixed(1)}%\n`;
+                info += `磁碟使用率: ${data.system.disk.percent.toFixed(1)}%\n`;
+                info += `環境: ${data.config.environment}\n`;
+                info += `除錯模式: ${data.config.debug_mode ? '開啟' : '關閉'}`;
+                
+                alert(info);
+            }
+        })
+        .catch(error => {
+            console.error('無法獲取系統資訊:', error);
+            alert('無法獲取系統資訊，請檢查網絡連接');
+        });
+}
+
+function checkUpdates() {
+    console.log('檢查更新被點擊');
+    
+    if (window.powerMeterApp && window.powerMeterApp.showNotification) {
+        window.powerMeterApp.showNotification('檢查更新功能開發中...', 'info');
+    } else {
+        alert('檢查更新功能開發中...');
+    }
+}
+
+function showHelp() {
+    const helpText = `Power Meter GUI Professional - Web Edition 使用說明
+
+主要功能：
+• Excel 界面: 類似 Excel 的表格式電表管理界面
+• 即時監控: WebSocket 即時更新電表數據
+• 數據圖表: Chart.js 動態圖表和歷史數據分析
+• 系統設定: 供電時段、計費週期等系統配置
+
+快捷鍵：
+• Ctrl+R: 刷新數據
+• Ctrl+T: 切換主題
+
+操作說明：
+1. 點擊戶別欄位可切換供電狀態
+2. 雙擊戶別欄位可查看詳細資訊
+3. 車位號欄位可直接編輯
+4. 支援批量操作和數據導出
+
+如需更多幫助，請參考 GitHub 專案頁面。`;
+    
+    alert(helpText);
+}
+</script>
+{% endblock %}

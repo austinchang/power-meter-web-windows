@@ -1,0 +1,699 @@
+{% extends "base.html" %}
+
+{% block title %}歷史數據查詢 - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    .history-container {
+        background: var(--background-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .history-toolbar {
+        background: var(--surface-color);
+        border-bottom: 1px solid var(--border-color);
+        padding: 16px;
+    }
+    
+    .meter-selector {
+        max-width: 200px;
+    }
+    
+    .date-range-controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .stat-card {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 4px;
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+    
+    .history-table th,
+    .history-table td {
+        border: 1px solid var(--border-color);
+        padding: 12px;
+        text-align: center;
+    }
+    
+    .history-table th {
+        background: var(--surface-color);
+        font-weight: bold;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .history-table tbody tr:hover {
+        background: var(--hover-color);
+    }
+    
+    .chart-container {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 20px;
+        height: 400px;
+    }
+    
+    .loading-spinner {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+    }
+    
+    .error-message {
+        background: var(--error-color);
+        color: white;
+        padding: 12px;
+        border-radius: 4px;
+        margin: 16px 0;
+    }
+    
+    .success-message {
+        background: var(--success-color);
+        color: white;
+        padding: 12px;
+        border-radius: 4px;
+        margin: 16px 0;
+    }
+    
+    .power-event {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        margin: 2px;
+    }
+    
+    .power-event.power-on {
+        background: var(--success-color);
+        color: white;
+    }
+    
+    .power-event.power-off {
+        background: var(--error-color);
+        color: white;
+    }
+    
+    .data-table-container {
+        max-height: 500px;
+        overflow: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- 左側控制面板 -->
+        <div class="col-md-3">
+            <div class="history-container mb-4">
+                <div class="history-toolbar">
+                    <h6><i class="fas fa-search me-2"></i>查詢條件</h6>
+                    
+                    <!-- 電表選擇 -->
+                    <div class="mb-3">
+                        <label class="form-label small">電表選擇</label>
+                        <select class="form-select meter-selector" id="meterSelector">
+                            <option value="">選擇電表...</option>
+                            <option value="all">所有電表統計</option>
+                            <optgroup label="A 區 (A1-A10)">
+                                {% for i in range(1, 11) %}
+                                <option value="{{ i }}">電表 {{ i }} (A{{ i }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="B 區 (B1-B10)">
+                                {% for i in range(11, 21) %}
+                                <option value="{{ i }}">電表 {{ i }} (B{{ i-10 }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="C 區 (C1-C10)">
+                                {% for i in range(21, 31) %}
+                                <option value="{{ i }}">電表 {{ i }} (C{{ i-20 }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="D 區 (D1-D10)">
+                                {% for i in range(31, 41) %}
+                                <option value="{{ i }}">電表 {{ i }} (D{{ i-30 }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="E 區 (E1-E10)">
+                                {% for i in range(41, 51) %}
+                                <option value="{{ i }}">電表 {{ i }} (E{{ i-40 }})</option>
+                                {% endfor %}
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <!-- 查詢範圍 -->
+                    <div class="mb-3">
+                        <label class="form-label small">查詢範圍</label>
+                        <div class="date-range-controls">
+                            <select class="form-select" id="dateRange">
+                                <option value="7">近 7 天</option>
+                                <option value="30" selected>近 30 天</option>
+                                <option value="90">近 90 天</option>
+                                <option value="custom">自定義範圍</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定義日期範圍 -->
+                    <div id="customDateRange" class="mb-3" style="display: none;">
+                        <label class="form-label small">起始日期</label>
+                        <input type="date" class="form-control mb-2" id="startDate">
+                        <label class="form-label small">結束日期</label>
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                    
+                    <!-- 查詢按鈕 -->
+                    <button class="btn btn-primary w-100" onclick="loadHistoryData()">
+                        <i class="fas fa-search me-1"></i>查詢數據
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 快速操作 -->
+            <div class="history-container">
+                <div class="history-toolbar">
+                    <h6><i class="fas fa-tools me-2"></i>快速操作</h6>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-info btn-sm" onclick="loadBillingSummary()">
+                            <i class="fas fa-calculator me-1"></i>計費摘要
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" onclick="loadPowerEvents()">
+                            <i class="fas fa-bolt me-1"></i>供電事件
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" onclick="exportHistoryData()">
+                            <i class="fas fa-download me-1"></i>導出數據
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右側數據顯示區 -->
+        <div class="col-md-9">
+            <!-- 統計摘要卡片 -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalUsage">--</div>
+                    <div class="stat-label">總用電量 (kWh)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCost">--</div>
+                    <div class="stat-label">總費用 (元)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgDaily">--</div>
+                    <div class="stat-label">日均用電 (kWh)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="powerEvents">--</div>
+                    <div class="stat-label">供電事件數</div>
+                </div>
+            </div>
+            
+            <!-- 消息顯示區 -->
+            <div id="messageArea"></div>
+            
+            <!-- 數據內容區 -->
+            <div class="history-container">
+                <div class="history-toolbar">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            <span id="dataTitle">歷史數據查詢</span>
+                        </h5>
+                        <div>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="toggleView('table')">
+                                <i class="fas fa-table me-1"></i>表格
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="toggleView('chart')">
+                                <i class="fas fa-chart-bar me-1"></i>圖表
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 載入中提示 -->
+                <div id="loadingIndicator" class="loading-spinner" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                
+                <!-- 表格視圖 -->
+                <div id="tableView" class="data-table-container">
+                    <table class="history-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>用電量 (kWh)</th>
+                                <th>費用 (元)</th>
+                                <th>供電時間 (小時)</th>
+                                <th>平均功率 (W)</th>
+                                <th>狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">
+                                    請選擇電表並點擊查詢按鈕載入數據
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 圖表視圖 -->
+                <div id="chartView" class="chart-container" style="display: none;">
+                    <canvas id="historyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 詳細信息模態框 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    詳細信息
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailModalBody">
+                <!-- 詳細信息內容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// 全局變量
+let currentView = 'table';
+let currentData = null;
+let historyChart = null;
+
+// 頁面載入完成後初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('History page loaded');
+    
+    // 日期範圍選擇事件
+    document.getElementById('dateRange').addEventListener('change', function() {
+        const customRange = document.getElementById('customDateRange');
+        if (this.value === 'custom') {
+            customRange.style.display = 'block';
+        } else {
+            customRange.style.display = 'none';
+        }
+    });
+    
+    // 設置默認日期
+    const today = new Date().toISOString().split('T')[0];
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    document.getElementById('endDate').value = today;
+    document.getElementById('startDate').value = weekAgo;
+});
+
+// 載入歷史數據
+function loadHistoryData() {
+    const meterId = document.getElementById('meterSelector').value;
+    const dateRange = document.getElementById('dateRange').value;
+    
+    if (!meterId) {
+        showMessage('請先選擇要查詢的電表', 'error');
+        return;
+    }
+    
+    if (meterId === 'all') {
+        loadBillingSummary();
+        return;
+    }
+    
+    showLoading(true);
+    clearMessages();
+    
+    let days = parseInt(dateRange);
+    if (dateRange === 'custom') {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        if (!startDate || !endDate) {
+            showMessage('請選擇起始和結束日期', 'error');
+            showLoading(false);
+            return;
+        }
+        
+        days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+    }
+    
+    // API 請求
+    fetch(`/api/history/daily-summary/${meterId}?days=${days}`)
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            
+            if (data.success) {
+                currentData = data.data;
+                updateDataTitle(`電表 ${meterId} - ${data.data.period}`);
+                updateStatsGrid(data.data.summary);
+                updateHistoryTable(data.data.daily_statistics);
+                
+                if (currentView === 'chart') {
+                    updateHistoryChart(data.data.daily_statistics);
+                }
+                
+                showMessage('數據載入成功', 'success');
+            } else {
+                showMessage(`載入失敗: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            showLoading(false);
+            console.error('Error loading history data:', error);
+            showMessage('網絡錯誤，請稍後重試', 'error');
+        });
+}
+
+// 載入計費摘要
+function loadBillingSummary() {
+    showLoading(true);
+    clearMessages();
+    
+    fetch('/api/history/billing-summary')
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            
+            if (data.success) {
+                const billingData = data.data;
+                updateDataTitle(`系統計費摘要 - ${billingData.period}`);
+                
+                // 更新統計卡片
+                document.getElementById('totalUsage').textContent = billingData.estimated_total_usage_kwh || '--';
+                document.getElementById('totalCost').textContent = billingData.estimated_total_cost_yuan || '--';
+                document.getElementById('avgDaily').textContent = 
+                    billingData.estimated_total_usage_kwh ? 
+                    (billingData.estimated_total_usage_kwh / 30).toFixed(1) : '--';
+                document.getElementById('powerEvents').textContent = billingData.active_meters || '--';
+                
+                // 更新表格顯示摘要信息
+                const tbody = document.getElementById('historyTableBody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-start">
+                            <h6>系統計費摘要</h6>
+                            <p><strong>計費周期:</strong> ${billingData.period}</p>
+                            <p><strong>總電表數:</strong> ${billingData.total_meters}</p>
+                            <p><strong>活躍電表:</strong> ${billingData.active_meters}</p>
+                            <p><strong>預估總用電:</strong> ${billingData.estimated_total_usage_kwh} kWh</p>
+                            <p><strong>預估總費用:</strong> ${billingData.estimated_total_cost_yuan} 元</p>
+                            <p><strong>電價:</strong> ${billingData.rate_per_kwh} 元/kWh</p>
+                            <p><small class="text-muted">${billingData.note}</small></p>
+                        </td>
+                    </tr>
+                `;
+                
+                showMessage('計費摘要載入成功', 'success');
+            } else {
+                showMessage(`載入失敗: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            showLoading(false);
+            console.error('Error loading billing summary:', error);
+            showMessage('網絡錯誤，請稍後重試', 'error');
+        });
+}
+
+// 載入供電事件
+function loadPowerEvents() {
+    showLoading(true);
+    clearMessages();
+    
+    const hours = 24; // 預設查詢24小時
+    
+    fetch(`/api/history/power-events?hours=${hours}`)
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            
+            if (data.success) {
+                const events = data.data.events;
+                const summary = data.data.summary;
+                
+                updateDataTitle(`供電事件記錄 - 近 ${hours} 小時`);
+                
+                // 更新統計
+                document.getElementById('totalUsage').textContent = events.length;
+                document.getElementById('totalCost').textContent = summary.power_on_events;
+                document.getElementById('avgDaily').textContent = summary.power_off_events;
+                document.getElementById('powerEvents').textContent = summary.scheduled_events;
+                
+                // 更新表格
+                const tbody = document.getElementById('historyTableBody');
+                tbody.innerHTML = events.map(event => `
+                    <tr>
+                        <td>${new Date(event.timestamp).toLocaleString()}</td>
+                        <td>電表 ${event.meter_id}</td>
+                        <td>
+                            <span class="power-event ${event.event_type}">
+                                ${event.event_type === 'power_on' ? '供電開始' : '供電結束'}
+                            </span>
+                        </td>
+                        <td>${event.reason}</td>
+                        <td>${event.duration_minutes} 分鐘</td>
+                        <td>${event.status}</td>
+                    </tr>
+                `).join('');
+                
+                showMessage('供電事件載入成功', 'success');
+            } else {
+                showMessage(`載入失敗: ${data.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            showLoading(false);
+            console.error('Error loading power events:', error);
+            showMessage('網絡錯誤，請稍後重試', 'error');
+        });
+}
+
+// 更新統計卡片
+function updateStatsGrid(summary) {
+    document.getElementById('totalUsage').textContent = summary.total_usage_kwh || '--';
+    document.getElementById('totalCost').textContent = summary.total_cost_yuan || '--';
+    document.getElementById('avgDaily').textContent = summary.avg_daily_usage_kwh || '--';
+    document.getElementById('powerEvents').textContent = summary.max_daily_usage || '--';
+}
+
+// 更新歷史數據表格
+function updateHistoryTable(dailyStats) {
+    const tbody = document.getElementById('historyTableBody');
+    
+    if (!dailyStats || dailyStats.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暫無數據</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = dailyStats.map(stat => `
+        <tr>
+            <td>${stat.date}</td>
+            <td>${stat.daily_usage}</td>
+            <td>${stat.cost}</td>
+            <td>${stat.powered_hours}</td>
+            <td>${stat.avg_power}</td>
+            <td>
+                <span class="badge ${stat.powered_hours > 20 ? 'bg-success' : 'bg-warning'}">
+                    ${stat.powered_hours > 20 ? '正常' : '部分斷電'}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 更新歷史數據圖表
+function updateHistoryChart(dailyStats) {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    
+    if (historyChart) {
+        historyChart.destroy();
+    }
+    
+    const labels = dailyStats.map(stat => stat.date);
+    const usageData = dailyStats.map(stat => stat.daily_usage);
+    const costData = dailyStats.map(stat => stat.cost);
+    
+    historyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '每日用電量 (kWh)',
+                data: usageData,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                yAxisID: 'y'
+            }, {
+                label: '每日費用 (元)',
+                data: costData,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: '日期'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: '用電量 (kWh)'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '費用 (元)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    });
+}
+
+// 切換視圖
+function toggleView(view) {
+    currentView = view;
+    
+    const tableView = document.getElementById('tableView');
+    const chartView = document.getElementById('chartView');
+    
+    if (view === 'table') {
+        tableView.style.display = 'block';
+        chartView.style.display = 'none';
+    } else {
+        tableView.style.display = 'none';
+        chartView.style.display = 'block';
+        
+        if (currentData && currentData.daily_statistics) {
+            updateHistoryChart(currentData.daily_statistics);
+        }
+    }
+}
+
+// 導出數據
+function exportHistoryData() {
+    if (!currentData) {
+        showMessage('請先載入數據再進行導出', 'error');
+        return;
+    }
+    
+    showMessage('數據導出功能開發中...', 'info');
+}
+
+// 更新數據標題
+function updateDataTitle(title) {
+    document.getElementById('dataTitle').textContent = title;
+}
+
+// 顯示載入狀態
+function showLoading(show) {
+    const indicator = document.getElementById('loadingIndicator');
+    indicator.style.display = show ? 'flex' : 'none';
+}
+
+// 顯示消息
+function showMessage(message, type) {
+    const messageArea = document.getElementById('messageArea');
+    const className = type === 'error' ? 'error-message' : 
+                     type === 'success' ? 'success-message' : 
+                     'alert alert-info';
+    
+    messageArea.innerHTML = `<div class="${className}">${message}</div>`;
+    
+    // 3秒後自動清除消息
+    setTimeout(() => {
+        if (messageArea.innerHTML.includes(message)) {
+            messageArea.innerHTML = '';
+        }
+    }, 3000);
+}
+
+// 清除消息
+function clearMessages() {
+    document.getElementById('messageArea').innerHTML = '';
+}
+</script>
+{% endblock %}

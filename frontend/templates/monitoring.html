@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}即時監控 - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-eye me-2"></i>即時監控
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    即時監控功能開發中，請使用 Excel 界面進行電表管理。
+                </div>
+                <div class="text-center">
+                    <a href="{{ url_for('excel_interface') }}" class="btn btn-primary">
+                        <i class="fas fa-table me-2"></i>前往 Excel 界面
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

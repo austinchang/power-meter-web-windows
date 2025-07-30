@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}電表即時監控 - {{ super() }}{% endblock %}
+
+{% block head %}
+<style>
+    .monitor-container {
+        background: var(--background-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .meter-selector {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+    
+    .control-panel {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+    
+    .monitor-table {
+        background: var(--background-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    
+    .monitor-table table {
+        width: 100%;
+        margin: 0;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+    }
+    
+    .monitor-table th {
+        background: var(--primary-color);
+        color: white;
+        padding: 10px 8px;
+        text-align: center;
+        font-weight: bold;
+        border: none;
+    }
+    
+    .monitor-table td {
+        padding: 8px;
+        text-align: center;  
+        border-bottom: 1px solid var(--border-color);
+        background: var(--background-color);
+    }
+    
+    .monitor-table tbody tr:nth-child(even) td {
+        background: var(--surface-color);
+    }
+    
+    .monitor-table tbody tr:hover td {
+        background: rgba(var(--primary-color-rgb), 0.1);
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+    }
+    
+    .status-monitoring {
+        background-color: var(--success-color);
+        color: white;
+    }
+    
+    .status-stopped {
+        background-color: var(--error-color);
+        color: white;
+    }
+    
+    .status-connecting {
+        background-color: var(--warning-color);
+        color: white;
+    }
+    
+    .relay-status {
+        font-weight: bold;
+    }
+    
+    .relay-on {
+        color: var(--success-color);
+    }
+    
+    .relay-off {
+        color: var(--error-color);
+    }
+    
+    .relay-unknown {
+        color: var(--text-secondary);
+    }
+    
+    .data-cell {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+    }
+    
+    .change-positive {
+        color: var(--success-color);
+    }
+    
+    .change-negative {
+        color: var(--error-color);
+    }
+    
+    .monitor-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
+    .btn-group .btn {
+        margin-right: 5px;
+    }
+    
+    .btn-group .btn:last-child {
+        margin-right: 0;
+    }
+    
+    .meter-select {
+        min-width: 200px;
+    }
+    
+    .interval-input {
+        width: 80px;
+    }
+    
+    .alert {
+        margin-bottom: 16px;
+    }
+    
+    .table-container {
+        max-height: 60vh;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+    
+    .monitor-header {
+        background: var(--primary-color);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px 8px 0 0;
+        margin: -20px -20px 20px -20px;
+    }
+    
+    .loading-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="monitor-container">
+    <div class="monitor-header">
+        <h4 class="mb-0">
+            <i class="fas fa-chart-line me-2"></i>
+            電表即時監控系統
+        </h4>
+        <small>選擇任意電表進行即時監控與繼電器控制</small>
+    </div>
+    
+    <!-- 監控統計 -->
+    <div class="monitor-stats">
+        <div class="stat-card">
+            <div class="stat-value" id="monitorStatus">未監控</div>
+            <div class="stat-label">監控狀態</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="currentMeter">--</div>
+            <div class="stat-label">當前電表</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="monitorDuration">--</div>
+            <div class="stat-label">監控時長</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalChange">--</div>
+            <div class="stat-label">累計變化 (kWh)</div>
+        </div>
+    </div>
+    
+    <!-- 電表選擇區 -->
+    <div class="meter-selector">
+        <label for="meterSelect" class="form-label mb-0">
+            <i class="fas fa-bolt me-1"></i>選擇電表：
+        </label>
+        <select id="meterSelect" class="form-select meter-select">
+            <option value="">請選擇電表...</option>
+        </select>
+        
+        <div class="btn-group">
+            <button id="startMonitor" class="btn btn-success" disabled>
+                <i class="fas fa-play me-1"></i>開始監控
+            </button>
+            <button id="stopMonitor" class="btn btn-danger" disabled>
+                <i class="fas fa-stop me-1"></i>停止監控
+            </button>
+        </div>
+        
+        <button id="testConnection" class="btn btn-info" disabled>
+            <i class="fas fa-plug me-1"></i>測試連接
+        </button>
+    </div>
+    
+    <!-- 控制面板 -->
+    <div class="control-panel">
+        <label for="intervalInput" class="form-label mb-0">
+            <i class="fas fa-clock me-1"></i>監控間隔：
+        </label>
+        <input type="number" id="intervalInput" class="form-control interval-input" 
+               value="5" min="1" max="60"> 秒
+        
+        <div class="btn-group">
+            <button id="relayOn" class="btn btn-warning" disabled>
+                <i class="fas fa-power-off me-1"></i>RELAY ON
+            </button>
+            <button id="relayOff" class="btn btn-secondary" disabled>
+                <i class="fas fa-power-off me-1"></i>RELAY OFF
+            </button>
+        </div>
+        
+        <span>當前狀態：
+            <span id="relayStatus" class="badge bg-secondary relay-status">未知</span>
+        </span>
+        
+        <button id="clearData" class="btn btn-outline-danger">
+            <i class="fas fa-trash me-1"></i>清除數據
+        </button>
+    </div>
+    
+    <!-- 警告/狀態消息 -->
+    <div id="alertContainer"></div>
+    
+    <!-- 監控數據表格 -->
+    <div class="table-container">
+        <table class="table table-striped table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>時間</th>
+                    <th>電壓(V)</th>
+                    <th>電流(A)</th>
+                    <th>功率(W)</th>
+                    <th>電能(kWh)</th>
+                    <th>變化(kWh)</th>
+                    <th>累計變化</th>
+                    <th>繼電器</th>
+                </tr>
+            </thead>
+            <tbody id="monitorData">
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        請選擇電表並開始監控以查看即時數據
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- 監控說明 -->
+    <div class="mt-3">
+        <small class="text-muted">
+            <i class="fas fa-info-circle me-1"></i>
+            <strong>使用說明：</strong>
+            1. 選擇要監控的電表 (1-50)
+            2. 設定監控間隔 (1-60秒)
+            3. 點擊「開始監控」開始即時監控
+            4. 可隨時控制該電表的繼電器 ON/OFF
+            5. 監控數據會即時更新並顯示變化量
+        </small>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/monitor.js') }}"></script>
+<script>
+// 額外的調試代碼
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 Monitor頁面調試信息');
+    
+    // 檢查電表選擇器
+    const meterSelect = document.getElementById('meterSelect');
+    console.log('電表選擇器元素:', meterSelect);
+    
+    // 測試API連接
+    setTimeout(async () => {
+        try {
+            console.log('🔗 測試API連接...');
+            const response = await fetch('/api/monitor/meters');
+            const result = await response.json();
+            console.log('API回應:', result);
+            
+            if (result.success && result.data) {
+                console.log(`✅ API正常，返回${result.data.length}個電表`);
+                
+                // 手動填充選擇器（如果自動填充失敗）
+                if (meterSelect && meterSelect.options.length <= 1) {
+                    console.log('🛠️ 手動填充電表選項');
+                    result.data.forEach(meter => {
+                        const option = document.createElement('option');
+                        option.value = meter.id;
+                        option.textContent = meter.display_name;
+                        meterSelect.appendChild(option);
+                    });
+                    console.log(`✅ 手動添加了${result.data.length}個電表選項`);
+                    
+                    // 通知 MeterMonitor 實例更新按鈕狀態
+                    if (window.meterMonitor) {
+                        console.log('🔧 手動觸發按鈕狀態更新');
+                        window.meterMonitor.updateButtonStates(false);
+                    } else {
+                        console.log('⚠️ window.meterMonitor 尚未初始化，等待初始化...');
+                        // 延遲重試
+                        setTimeout(() => {
+                            if (window.meterMonitor) {
+                                console.log('🔧 延遲觸發按鈕狀態更新');
+                                window.meterMonitor.updateButtonStates(false);
+                            } else {
+                                console.error('❌ MeterMonitor 初始化失敗');
+                            }
+                        }, 1000);
+                    }
+                }
+            } else {
+                console.error('❌ API回應異常:', result);
+            }
+        } catch (error) {
+            console.error('❌ API連接失敗:', error);
+        }
+    }, 2000);
+});
+</script>
+{% endblock %}

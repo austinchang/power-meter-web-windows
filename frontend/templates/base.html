@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_info().name }}{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Chart.js - Temporarily disabled due to module errors -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script> -->
+    
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+    {% block head %}{% endblock %}
+    
+    <style>
+        :root {
+            --primary-color: #2196F3;
+            --secondary-color: #FFC107;
+            --success-color: #4CAF50;
+            --warning-color: #FF9800;
+            --error-color: #F44336;
+            --background-color: #FFFFFF;
+            --surface-color: #F5F5F5;
+            --text-color: #333333;
+            --text-secondary: #666666;
+            --border-color: #DDDDDD;
+            --accent-color: #E3F2FD;
+        }
+        
+        [data-theme="dark"] {
+            --primary-color: #64B5F6;
+            --secondary-color: #FFB74D;
+            --success-color: #81C784;
+            --warning-color: #FFB74D;
+            --error-color: #E57373;
+            --background-color: #1E1E1E;
+            --surface-color: #2D2D2D;
+            --text-color: #FFFFFF;
+            --text-secondary: #BBBBBB;
+            --border-color: #404040;
+            --accent-color: #1A237E;
+        }
+        
+        [data-theme="industrial"] {
+            --primary-color: #FF6B35;
+            --secondary-color: #F7931E;
+            --success-color: #7CB342;
+            --warning-color: #FFA726;
+            --error-color: #E53935;
+            --background-color: #263238;
+            --surface-color: #37474F;
+            --text-color: #ECEFF1;
+            --text-secondary: #B0BEC5;
+            --border-color: #546E7A;
+            --accent-color: #FF8A65;
+        }
+        
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: 'Arial', sans-serif;
+            transition: all 0.3s ease;
+        }
+        
+        .navbar {
+            background-color: var(--surface-color) !important;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .navbar-brand, .nav-link {
+            color: var(--text-color) !important;
+        }
+        
+        .nav-link:hover {
+            color: var(--primary-color) !important;
+        }
+        
+        .card {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-color);
+            filter: brightness(1.1);
+            border-color: var(--primary-color);
+        }
+        
+        .form-control, .form-select {
+            background-color: var(--surface-color);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background-color: var(--surface-color);
+            border-color: var(--primary-color);
+            color: var(--text-color);
+            box-shadow: 0 0 0 0.25rem rgba(var(--primary-color), 0.25);
+        }
+        
+        .table {
+            color: var(--text-color);
+        }
+        
+        .table-striped > tbody > tr:nth-of-type(odd) > td,
+        .table-striped > tbody > tr:nth-of-type(odd) > th {
+            background-color: var(--accent-color);
+        }
+        
+        .alert-info {
+            background-color: var(--accent-color);
+            border-color: var(--primary-color);
+            color: var(--text-color);
+        }
+        
+        /* Status indicators */
+        .status-online {
+            color: var(--success-color);
+        }
+        
+        .status-offline {
+            color: var(--error-color);
+        }
+        
+        .power-on {
+            background-color: rgba(173, 216, 230, 0.3);
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .power-off {
+            background-color: rgba(255, 182, 193, 0.3);
+            border-left: 4px solid var(--error-color);
+        }
+        
+        /* Loading spinner */
+        .spinner-border {
+            color: var(--primary-color);
+        }
+        
+        /* Toast notifications */
+        .toast {
+            background-color: var(--surface-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-bolt me-2"></i>
+                {{ app_info().name }}
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>首頁
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for_safe('excel_interface') }}">
+                            <i class="fas fa-table me-1"></i>Excel 界面
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for_safe('monitor') }}">
+                            <i class="fas fa-eye me-1"></i>即時監控
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for_safe('charts') }}">
+                            <i class="fas fa-chart-line me-1"></i>數據圖表
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for_safe('rtu_management') }}">
+                            <i class="fas fa-plug me-1"></i>RTU 連接
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for_safe('history_data') }}">
+                            <i class="fas fa-history me-1"></i>歷史數據
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for_safe('settings') }}">
+                            <i class="fas fa-cog me-1"></i>系統設定
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <!-- Theme Selector -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="themeDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-palette me-1"></i>主題
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" data-theme="light">
+                                <i class="fas fa-sun me-2"></i>明亮主題
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" data-theme="dark">
+                                <i class="fas fa-moon me-2"></i>暗黑主題
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" data-theme="industrial">
+                                <i class="fas fa-industry me-2"></i>工業主題
+                            </a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Connection Status -->
+                    <li class="nav-item">
+                        <span class="navbar-text">
+                            <i id="connectionStatus" class="fas fa-circle status-offline me-1"></i>
+                            <span id="connectionText">離線</span>
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container-fluid py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong class="me-auto">系統通知</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content text-center">
+                <div class="modal-body">
+                    <div class="spinner-border mb-3" role="status">
+                        <span class="visually-hidden">載入中...</span>
+                    </div>
+                    <div>載入中，請稍候...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Debug JavaScript (remove in production) -->
+    <script src="{{ url_for('static', filename='js/debug.js') }}"></script>
+    
+    <!-- Diagnostic Tool -->
+    <script src="{{ url_for('static', filename='js/diagnostic.js') }}"></script>
+    
+    <!-- Force Navigation Fix -->
+    <script src="{{ url_for('static', filename='js/force-navigation.js') }}"></script>
+    
+    <!-- Global JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    {% block scripts %}{% endblock %}
+    
+    <!-- Debug Console Button -->
+    <div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999;">
+        <div class="btn-group-vertical">
+            <button onclick="debugTest()" class="btn btn-sm btn-warning">🐛 Debug</button>
+            <button onclick="runDiagnostic()" class="btn btn-sm btn-info">🔧 診斷</button>
+        </div>
+    </div>
+</body>
+</html>
