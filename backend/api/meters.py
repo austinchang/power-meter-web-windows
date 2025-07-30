@@ -8,26 +8,59 @@ import time
 from datetime import datetime, timedelta
 from flask import request, jsonify, current_app
 from . import api_bp
-from ..modbus.rtu_client import ModbusRTUClient
+from ..services.power_meter_controller_minimal import get_power_meter_controller
 
-# 全局 RTU 客戶端實例
-_rtu_client = None
+# 全局控制器實例  
+_power_controller = None
 
-def get_rtu_client():
-    """獲取 RTU 客戶端實例"""
-    global _rtu_client
-    if _rtu_client is None:
-        rtu_config = {
-            'rtu_port': current_app.config.get('RTU_PORT', '/dev/ttyUSB0'),
-            'baudrate': current_app.config.get('RTU_BAUDRATE', 9600),
-            'bytesize': current_app.config.get('RTU_BYTESIZE', 8),
-            'parity': current_app.config.get('RTU_PARITY', 'N'),
-            'stopbits': current_app.config.get('RTU_STOPBITS', 1),
-            'timeout': current_app.config.get('RTU_TIMEOUT', 1.0),
-            'cache_expiry': current_app.config.get('RTU_CACHE_EXPIRY', 5)
-        }
-        _rtu_client = ModbusRTUClient(rtu_config)
-    return _rtu_client
+def get_power_controller():
+    """獲取電表控制器實例"""
+    global _power_controller
+    if _power_controller is None:
+        port = current_app.config.get('RTU_PORT', 'COM1')
+        slave_address = int(current_app.config.get('RTU_SLAVE_ADDRESS', '2'))
+        _power_controller = get_power_meter_controller(port, slave_address)
+    return _power_controller
+
+def _get_simulated_meter_data(meter_id: int):
+    """獲取模擬電表數據"""
+    import random
+    
+    # 使用供電時段邏輯
+    try:
+        from ..services.meter_service import meter_service
+        is_power_on = meter_service.is_power_schedule_active('open_power')
+    except:
+        from datetime import datetime
+        current_hour = datetime.now().hour
+        is_power_on = 6 <= current_hour < 22
+    
+    # 基礎值
+    base_voltage = 220.0 + (meter_id % 10)
+    base_current = 5.0 + (meter_id % 5)
+    base_power = base_voltage * base_current * 0.9 / 1000.0  # kW
+    base_energy = 1000.0 + meter_id * 100
+    
+    return {
+        'id': meter_id,
+        'timestamp': datetime.now().isoformat(),
+        'online': True,
+        'voltage_avg': base_voltage + random.uniform(-5, 5) if is_power_on else 0.0,
+        'voltage_l1': base_voltage + random.uniform(-5, 5) if is_power_on else 0.0,
+        'voltage_l2': base_voltage + random.uniform(-5, 5) if is_power_on else 0.0,
+        'voltage_l3': base_voltage + random.uniform(-5, 5) if is_power_on else 0.0,
+        'current_total': base_current + random.uniform(-1, 2) if is_power_on else 0.0,
+        'current_l1': (base_current / 3.0) + random.uniform(-0.5, 0.5) if is_power_on else 0.0,
+        'current_l2': (base_current / 3.0) + random.uniform(-0.5, 0.5) if is_power_on else 0.0,
+        'current_l3': (base_current / 3.0) + random.uniform(-0.5, 0.5) if is_power_on else 0.0,
+        'power_active': base_power + random.uniform(-0.5, 1.0) if is_power_on else 0.0,
+        'power_apparent': base_power * 1.1 if is_power_on else 0.0,
+        'power_factor': 0.9 + random.uniform(-0.05, 0.05),
+        'total_energy': base_energy + (time.time() % 86400) / 86400 * 10,
+        'frequency': 50.0 + random.uniform(-0.1, 0.1),
+        'is_powered': is_power_on,
+        'power_status': 'powered' if is_power_on else 'unpowered'
+    }
 
 
 @api_bp.route('/meters', methods=['GET'])
@@ -64,46 +97,44 @@ def get_all_meters():
         meters = []
         
         if rtu_enabled:
-            # 使用 MODBUS RTU 讀取實際數據
-            rtu_client = get_rtu_client()
-            
-            if not use_cache:
-                rtu_client.clear_cache()
-            
-            # 批量讀取電表數據
-            meter_data_dict = rtu_client.read_multiple_meters(meter_ids[:10])  # 限制前10個避免超時
+            # 使用基於 minimalmodbus 的電表控制器讀取實際數據
+            controller = get_power_controller()
             
             for meter_id in meter_ids:
-                if meter_id in meter_data_dict:
-                    raw_data = meter_data_dict[meter_id]
-                    
-                    # 從數據庫獲取電表配置信息
-                    from ..database.models import Meter
-                    db_meter = Meter.query.filter_by(meter_id=meter_id).first()
-                    
-                    # 轉換為標準格式
-                    meter_data = {
-                        'id': meter_id,
-                        'name': db_meter.name if db_meter else f'RTU電表{meter_id:02d}',
-                        'parking': db_meter.parking if db_meter else f'RTU-{meter_id:04d}',
-                        'status': 'online' if raw_data.get('online', False) else 'offline',
-                        'power_on': raw_data.get('online', False),
-                        'voltage': round(raw_data.get('voltage_avg', 0), 2),
-                        'voltage_l1': round(raw_data.get('voltage_l1', 0), 2),
-                        'voltage_l2': round(raw_data.get('voltage_l2', 0), 2),
-                        'voltage_l3': round(raw_data.get('voltage_l3', 0), 2),
-                        'current': round(raw_data.get('current_total', 0), 2),
-                        'current_l1': round(raw_data.get('current_l1', 0), 2),
-                        'current_l2': round(raw_data.get('current_l2', 0), 2),
-                        'current_l3': round(raw_data.get('current_l3', 0), 2),
-                        'power': round(raw_data.get('power_active', 0), 2),
-                        'power_apparent': round(raw_data.get('power_apparent', 0), 2),
-                        'energy': round(raw_data.get('total_energy', 0), 2),
-                        'frequency': round(raw_data.get('frequency', 0), 2),
-                        'power_factor': round(raw_data.get('power_factor', 0), 3),
-                        'last_update': raw_data.get('timestamp'),
-                        'error_message': raw_data.get('error_message')
-                    }
+                # 只有電表 ID 與配置的 slave_address 匹配時才讀取實際數據
+                if meter_id == controller.slave_address:
+                    raw_data = controller.get_meter_data(meter_id)
+                else:
+                    # 其他電表使用模擬數據
+                    raw_data = _get_simulated_meter_data(meter_id)
+                
+                # 從資料庫獲取電表配置信息
+                from ..database.models import Meter
+                db_meter = Meter.query.filter_by(meter_id=meter_id).first()
+                
+                # 轉換為標準格式
+                meter_data = {
+                    'id': meter_id,
+                    'name': db_meter.name if db_meter else f'RTU電表{meter_id:02d}',
+                    'parking': db_meter.parking if db_meter else f'RTU-{meter_id:04d}',
+                    'status': 'online' if raw_data.get('online', True) else 'offline',
+                    'power_on': raw_data.get('is_powered', True),
+                    'voltage': round(raw_data.get('voltage_avg', 0), 2),
+                    'voltage_l1': round(raw_data.get('voltage_l1', 0), 2),
+                    'voltage_l2': round(raw_data.get('voltage_l2', 0), 2),
+                    'voltage_l3': round(raw_data.get('voltage_l3', 0), 2),
+                    'current': round(raw_data.get('current_total', 0), 2),
+                    'current_l1': round(raw_data.get('current_l1', 0), 2),
+                    'current_l2': round(raw_data.get('current_l2', 0), 2),
+                    'current_l3': round(raw_data.get('current_l3', 0), 2),
+                    'power': round(raw_data.get('power_active', 0), 2),
+                    'power_apparent': round(raw_data.get('power_apparent', 0), 2),
+                    'energy': round(raw_data.get('total_energy', 0), 2),
+                    'frequency': round(raw_data.get('frequency', 0), 2),
+                    'power_factor': round(raw_data.get('power_factor', 0), 3),
+                    'last_update': raw_data.get('timestamp'),
+                    'error_message': raw_data.get('error_message')
+                }
                 else:
                     # 電表離線或無法讀取
                     meter_data = _get_fallback_meter_data(meter_id)
@@ -117,7 +148,8 @@ def get_all_meters():
         # 獲取連線狀態
         connection_status = {}
         if rtu_enabled:
-            connection_status = get_rtu_client().get_connection_status()
+            controller = get_power_controller()
+            connection_status = controller.get_connection_status()
         
         return jsonify({
             'success': True,
@@ -256,13 +288,15 @@ def get_meter(meter_id):
         rtu_enabled = current_app.config.get('RTU_ENABLED', False)
         
         if rtu_enabled:
-            # 使用 MODBUS RTU 讀取實際數據
-            rtu_client = get_rtu_client()
+            # 使用基於 minimalmodbus 的電表控制器讀取實際數據
+            controller = get_power_controller()
             
-            if not use_cache:
-                rtu_client.clear_cache()
-            
-            raw_data = rtu_client.read_meter_data(meter_id)
+            # 只有電表 ID 與配置的 slave_address 匹配時才讀取實際數據
+            if meter_id == controller.slave_address:
+                raw_data = controller.get_meter_data(meter_id)
+            else:
+                # 其他電表使用模擬數據
+                raw_data = _get_simulated_meter_data(meter_id)
             
             if raw_data.get('online', False):
                 # 從數據庫獲取電表配置信息
@@ -386,14 +420,20 @@ def control_meter(meter_id):
         if rtu_enabled:
             # 實際控制 MODBUS RELAY
             try:
-                rtu_client = get_rtu_client()
-                result = rtu_client.write_relay_control(meter_id, power_on)
-                if not result:
-                    success = False
-                    error_message = "MODBUS RELAY控制失敗"
-                    current_app.logger.error(f'電表 {meter_id} RELAY控制失敗')
+                controller = get_power_controller()
+                # 只有電表 ID 與配置的 slave_address 匹配時才進行實際控制
+                if meter_id == controller.slave_address:
+                    relay_action = "ON" if power_on else "OFF"
+                    result = controller.control_relay(relay_action)
+                    if not result:
+                        success = False
+                        error_message = "MODBUS RELAY控制失敗"
+                        current_app.logger.error(f'電表 {meter_id} RELAY控制失敗')
+                    else:
+                        current_app.logger.info(f'電表 {meter_id} RELAY {action}成功')
                 else:
-                    current_app.logger.info(f'電表 {meter_id} RELAY {action}成功')
+                    # 其他電表只更新數據庫，不進行實際控制
+                    current_app.logger.info(f'電表 {meter_id} 僅更新數據庫狀態 (非實際RTU控制)')
             except Exception as e:
                 success = False
                 error_message = f"RELAY控制異常: {str(e)}"

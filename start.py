@@ -39,6 +39,7 @@ def set_environment_variables():
         'FLASK_HOST': '0.0.0.0',
         'FLASK_PORT': '5001',
         'RTU_PORT': 'COM1',
+        'RTU_SLAVE_ADDRESS': '2',
         'RTU_BAUDRATE': '9600',
         'RTU_PARITY': 'N',
         'RTU_BYTESIZE': '8',

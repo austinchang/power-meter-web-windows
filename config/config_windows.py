@@ -53,6 +53,7 @@ class Config:
     # MODBUS RTU 設定 - Windows COM port
     RTU_ENABLED = os.environ.get('RTU_ENABLED', 'true').lower() == 'true'
     RTU_PORT = os.environ.get('RTU_PORT', 'COM1')  # Windows COM port
+    RTU_SLAVE_ADDRESS = int(os.environ.get('RTU_SLAVE_ADDRESS', '2'))
     RTU_BAUDRATE = int(os.environ.get('RTU_BAUDRATE', 9600))
     RTU_BYTESIZE = int(os.environ.get('RTU_BYTESIZE', 8))
     RTU_PARITY = os.environ.get('RTU_PARITY', 'N')

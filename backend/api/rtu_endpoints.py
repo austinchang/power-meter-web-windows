@@ -8,7 +8,7 @@ import glob
 from datetime import datetime
 from flask import request, jsonify, current_app
 from . import api_bp
-from .meters import get_rtu_client
+from ..services.power_meter_controller_minimal import get_power_meter_controller
 
 @api_bp.route('/rtu/status', methods=['GET'])
 def get_rtu_status():
@@ -31,22 +31,31 @@ def get_rtu_status():
                 'timestamp': datetime.now().isoformat()
             })
         
-        rtu_client = get_rtu_client()
-        status = rtu_client.get_connection_status()
+        # 獲取電表控制器實例
+        port = current_app.config.get('RTU_PORT', 'COM1')
+        slave_address = int(current_app.config.get('RTU_SLAVE_ADDRESS', '2'))
+        controller = get_power_meter_controller(port, slave_address)
+        status = controller.get_connection_status()
         
         return jsonify({
             'success': True,
             'data': {
                 'enabled': True,
                 'connected': status['connected'],
+                'mode': status['mode'],
                 'port': status['port'],
+                'slave_address': status['slave_address'],
                 'baudrate': status['baudrate'],
+                'parity': status['parity'],
+                'bytesize': status['bytesize'],
+                'stopbits': status['stopbits'],
+                'timeout': status['timeout'],
                 'request_count': status['request_count'],
                 'success_count': status['success_count'],
                 'error_count': status['error_count'],
                 'success_rate': status['success_rate'],
-                'cache_size': status['cache_size'],
-                'last_connection_attempt': status['last_connection_attempt']
+                'has_minimalmodbus': status['has_minimalmodbus'],
+                'force_simulation': status['force_simulation']
             },
             'timestamp': datetime.now().isoformat()
         })
@@ -78,17 +87,21 @@ def reconnect_rtu():
                 'timestamp': datetime.now().isoformat()
             }), 400
         
-        rtu_client = get_rtu_client()
+        # 獲取電表控制器實例
+        port = current_app.config.get('RTU_PORT', 'COM1')
+        slave_address = int(current_app.config.get('RTU_SLAVE_ADDRESS', '2'))
+        controller = get_power_meter_controller(port, slave_address)
         
-        # 強制重新連接
-        rtu_client.disconnect()
-        success = rtu_client.connect()
+        # 測試連接狀態
+        status = controller.get_connection_status()
+        connected = status['connected']
         
         return jsonify({
             'success': True,
             'data': {
-                'connected': success,
-                'message': '連接成功' if success else '連接失敗'
+                'connected': connected,
+                'message': 'RTU 控制器狀態已檢查',
+                'mode': status['mode']
             },
             'timestamp': datetime.now().isoformat()
         })
@@ -120,13 +133,11 @@ def clear_rtu_cache():
                 'timestamp': datetime.now().isoformat()
             }), 400
         
-        rtu_client = get_rtu_client()
-        rtu_client.clear_cache()
-        
+        # minimalmodbus 控制器沒有快取機制，返回成功狀態
         return jsonify({
             'success': True,
             'data': {
-                'message': '快取已清除'
+                'message': 'minimalmodbus 控制器無需清除快取'
             },
             'timestamp': datetime.now().isoformat()
         })

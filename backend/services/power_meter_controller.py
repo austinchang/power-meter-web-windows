@@ -2,6 +2,7 @@
 """
 Web版電錶控制器 - 基於 MODBUS_NEW20.PY 架構
 用於Web系統的單電表監控與繼電器控制
+使用與 MODBUS_TEST20.PY 相同的 minimalmodbus 方法
 """
 
 import os
@@ -14,7 +15,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
 
 # 配置模擬模式 (可通過環境變量覆蓋)
-FORCE_SIMULATION = os.environ.get('FORCE_SIMULATION', 'True').lower() == 'true'
+FORCE_SIMULATION = os.environ.get('FORCE_SIMULATION', 'False').lower() == 'true'
 
 try:
     import minimalmodbus
