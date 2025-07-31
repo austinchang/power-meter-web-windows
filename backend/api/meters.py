@@ -25,6 +25,7 @@ def get_power_controller():
 def _get_simulated_meter_data(meter_id: int):
     """獲取模擬電表數據"""
     import random
+    import time
     
     # 使用供電時段邏輯
     try:
@@ -135,15 +136,42 @@ def get_all_meters():
                     'last_update': raw_data.get('timestamp'),
                     'error_message': raw_data.get('error_message')
                 }
-                else:
-                    # 電表離線或無法讀取
-                    meter_data = _get_fallback_meter_data(meter_id)
                 
                 meters.append(meter_data)
         else:
             # 使用模擬數據 (原始行為)
             for meter_id in meter_ids:
-                meters.append(_get_simulated_meter_data(meter_id))
+                raw_data = _get_simulated_meter_data(meter_id)
+                
+                # 從資料庫獲取電表配置信息
+                from ..database.models import Meter
+                db_meter = Meter.query.filter_by(meter_id=meter_id).first()
+                
+                # 轉換為標準格式
+                meter_data = {
+                    'id': meter_id,
+                    'name': db_meter.name if db_meter else f'電表{meter_id:02d}',
+                    'parking': db_meter.parking if db_meter else f'A-{meter_id:04d}',
+                    'status': 'online' if raw_data.get('online', True) else 'offline',
+                    'power_on': raw_data.get('is_powered', True),
+                    'voltage': round(raw_data.get('voltage_avg', 0), 2),
+                    'voltage_l1': round(raw_data.get('voltage_l1', 0), 2),
+                    'voltage_l2': round(raw_data.get('voltage_l2', 0), 2),
+                    'voltage_l3': round(raw_data.get('voltage_l3', 0), 2),
+                    'current': round(raw_data.get('current_total', 0), 2),
+                    'current_l1': round(raw_data.get('current_l1', 0), 2),
+                    'current_l2': round(raw_data.get('current_l2', 0), 2),
+                    'current_l3': round(raw_data.get('current_l3', 0), 2),
+                    'power': round(raw_data.get('power_active', 0), 2),
+                    'power_apparent': round(raw_data.get('power_apparent', 0), 2),
+                    'energy': round(raw_data.get('total_energy', 0), 2),
+                    'frequency': round(raw_data.get('frequency', 0), 2),
+                    'power_factor': round(raw_data.get('power_factor', 0), 3),
+                    'last_update': raw_data.get('timestamp'),
+                    'error_message': raw_data.get('error_message')
+                }
+                
+                meters.append(meter_data)
         
         # 獲取連線狀態
         connection_status = {}
@@ -169,44 +197,7 @@ def get_all_meters():
         }), 500
 
 
-def _get_simulated_meter_data(meter_id: int) -> dict:
-    """獲取模擬電表數據 - 考慮時段控制"""
-    from ..services.meter_service import meter_service
-    
-    # 從數據庫獲取電表配置信息
-    try:
-        from ..database.models import Meter
-        
-        meter = Meter.query.filter_by(meter_id=meter_id).first()
-        
-        # 始終根據當前供電時段決定狀態，確保一致性
-        is_power_on = meter_service.is_power_schedule_active('open_power')
-        
-        if meter:
-            name = meter.name
-            parking = meter.parking
-        else:
-            # 如果數據庫中沒有記錄，使用預設名稱
-            name = f'RTU電表{meter_id:02d}'
-            parking = f'RTU-{meter_id:04d}'
-    except:
-        # 如果查詢失敗，回退到時段控制和預設值
-        is_power_on = meter_service.is_power_schedule_active('open_power')
-        name = f'RTU電表{meter_id:02d}'
-        parking = f'RTU-{meter_id:04d}'
-    
-    return {
-        'id': meter_id,
-        'name': name,
-        'parking': parking,
-        'status': 'online',
-        'power_on': is_power_on,  # 優先使用數據庫狀態，否則根據時段控制設定
-        'voltage': 220.0 + (meter_id % 10) if is_power_on else 0.0,
-        'current': 15.0 + (meter_id % 5) if is_power_on else 0.0,
-        'power': 3300.0 + (meter_id * 10) if is_power_on else 0.0,
-        'energy': meter_id * 50.5,
-        'last_update': datetime.now().isoformat()
-    }
+# 刪除重複的函數定義 - 使用上面第 25 行的版本
 
 
 def _get_fallback_meter_data(meter_id: int) -> dict:
