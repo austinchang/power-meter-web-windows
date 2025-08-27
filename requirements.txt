@@ -6,8 +6,9 @@ Flask-SQLAlchemy==3.0.5
 Flask-CORS==4.0.0
 
 # MODBUS RTU 通訊套件
-minimalmodbus==2.0.1
+minimalmodbus==2.1.1
 pyserial==3.5
+pymodbus>=3.0.0
 
 # Socket.IO 即時通訊
 python-socketio==5.9.0

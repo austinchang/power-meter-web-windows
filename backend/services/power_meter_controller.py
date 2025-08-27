@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
 
 # 配置模擬模式 (可通過環境變量覆蓋)
+# 預設為 False，遵循三大規定優先使用真實 RTU 數據
 FORCE_SIMULATION = os.environ.get('FORCE_SIMULATION', 'False').lower() == 'true'
 
 try:
