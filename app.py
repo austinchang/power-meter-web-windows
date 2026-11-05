@@ -12,6 +12,7 @@ from flask_cors import CORS
 
 from config import get_config, APP_INFO
 from backend.database import db, init_database
+from backend.security import install_security
 from backend.services import meter_service
 
 
@@ -46,6 +47,8 @@ def create_app(config_name=None):
         engineio_logger=app.config['SOCKETIO_ENGINEIO_LOGGER']
     )
     CORS(app, origins=app.config['CORS_ORIGINS'])
+    # 跨站阻擋 + 選用密碼；必須在 SocketIO(app) 之後，才能同時保護 /socket.io/
+    install_security(app)
     
     # 初始化數據庫 / Initialize database
     init_database(app)
@@ -873,7 +876,8 @@ if __name__ == '__main__':
     """應用程式入口點 / Application entry point"""
     
     # 檢查環境變量 / Check environment variables
-    debug = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    # 預設關閉：Werkzeug 互動除錯器若對區網開放等同遠端執行任意程式碼
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     host = os.environ.get('FLASK_HOST', '127.0.0.1')
     port = int(os.environ.get('FLASK_PORT', 5001))
     

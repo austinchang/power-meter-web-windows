@@ -18,11 +18,40 @@ for directory in [DATA_DIR, DATABASE_DIR, CONFIG_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 
+def _persistent_secret(env_name: str, file_name: str) -> str:
+    """環境變數優先；否則在 data/ 下產生並保存一組隨機金鑰（不進版控）。
+
+    取代原本寫死在公開 repo 的預設 SECRET_KEY / JWT_SECRET_KEY（任何人都能用它偽造 session / JWT）。
+    """
+    import secrets as _secrets
+    value = os.environ.get(env_name)
+    if value:
+        return value
+    path = DATA_DIR / file_name
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    except FileNotFoundError:
+        pass
+    value = _secrets.token_hex(32)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(value)
+    return value
+
+
+def _socketio_origins():
+    """預設 None（僅同源）；設定 POWER_METER_ALLOWED_ORIGINS 時交由 backend.security 判斷。"""
+    return "*" if os.environ.get("POWER_METER_ALLOWED_ORIGINS", "").strip() else None
+
+
 class Config:
     """基礎配置類 / Base configuration class"""
     
     # Flask 應用設定 / Flask application settings
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'power-meter-web-edition-secret-key-2025'
+    SECRET_KEY = _persistent_secret('SECRET_KEY', '.secret_key')
     
     # 數據庫設定 / Database settings
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{DATABASE_DIR}/power_meter_web.db'
@@ -34,7 +63,7 @@ class Config:
     
     # Socket.IO 設定 / Socket.IO settings
     SOCKETIO_ASYNC_MODE = 'threading'
-    SOCKETIO_CORS_ALLOWED_ORIGINS = "*"
+    SOCKETIO_CORS_ALLOWED_ORIGINS = _socketio_origins()
     SOCKETIO_LOGGER = True
     SOCKETIO_ENGINEIO_LOGGER = True
     
@@ -42,7 +71,7 @@ class Config:
     CORS_ORIGINS = ["http://localhost:5000", "http://127.0.0.1:5000"]
     
     # JWT 設定 / JWT settings
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key-for-power-meter'
+    JWT_SECRET_KEY = _persistent_secret('JWT_SECRET_KEY', '.jwt_secret_key')
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     
