@@ -62,3 +62,8 @@ Desktop.ini
 ._*
 .Spotlight-V100
 .Trashes
+
+# Generated secrets (never commit)
+data/.secret_key
+data/.jwt_secret_key
+.pytest_cache/

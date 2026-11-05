@@ -282,3 +282,16 @@ C:\PowerMeterWeb\
 ---
 
 ⚡ **Power Meter Web Edition** - 讓電力監控變得簡單高效！
+## 🔒 安全設定（重要）
+
+本系統可遠端切換實體繼電器（斷電／供電），請務必設定：
+
+| 環境變數 | 說明 |
+|---|---|
+| `POWER_METER_PASSWORD` | **強烈建議**。設定後所有頁面、API、Socket.IO 都需登入（瀏覽器會跳出帳密視窗，帳號任意、輸入此密碼）。Windows：`setx POWER_METER_PASSWORD "長一點的密碼"` 後重開命令列 |
+| `POWER_METER_ALLOWED_ORIGINS` | 選用。允許其他網站（逗號分隔，如 `http://scada.lan:8080`）呼叫寫入 API / Socket.IO；預設只允許本站 |
+| `SECRET_KEY` / `JWT_SECRET_KEY` | 選用。未設定時自動產生並存於 `data/.secret_key`、`data/.jwt_secret_key`（已 gitignore） |
+| `FLASK_DEBUG` | 預設 `False`。**切勿**在對區網開放（`FLASK_HOST=0.0.0.0`）時開啟，Werkzeug 除錯器可執行任意程式碼 |
+
+一律啟用的防護：跨站請求（CSRF）與跨站 WebSocket 會被拒絕（403），惡意網頁無法替你操作繼電器。
+不帶 `Origin` 的腳本／curl 不受影響（設定密碼後需加 `-u user:密碼`）。
